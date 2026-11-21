@@ -1,4 +1,4 @@
-import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput } from './calc.js?v=7';
+import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput } from './calc.js?v=8';
 import { SB_URL, SB_KEY } from './config.js';
 
 // ---------- 基本 ----------

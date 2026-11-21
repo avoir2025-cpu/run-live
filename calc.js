@@ -175,6 +175,12 @@ function analyzeFree(runner, pts, config, now, out) {
   // 沒有路線：用自己的 GPS 軌跡累積距離
   const fixes = [];
   let d = 0, prev = null;
+  // 起終點同一處（例如 10K/5K 折返）：離開 800 公尺以上又回到終點 150 公尺內，就算抵達。
+  // 手機鎖螢幕時點很稀疏，直線累加會把距離算短，靠這條才判得到完賽。
+  const C = CAT[out.cat];
+  const fin = config?.finish || Object.values(ROUTES)[0]?.pts?.at(-1) || null;
+  const minT = out.targetPace * C.len * 1000 * 0.4;
+  let away = 0;
   for (const p of pts) {
     if (p.t <= out.start) continue;
     if (p.a != null && p.a > 60) continue;
@@ -183,7 +189,15 @@ function analyzeFree(runner, pts, config, now, out) {
       if (dt > 0 && step / dt > 7) continue; // 超過 7 m/s 視為飄點
       d += step;
     }
-    fixes.push({ t: p.t, d, la: p.la, lo: p.lo });
+    if (fin) {
+      const toFin = hav(p.la, p.lo, fin[0], fin[1]);
+      away = Math.max(away, toFin);
+      if (away > 800 && toFin < 150 && p.t - out.start > minT) {
+        fixes.push({ t: p.t, d: C.len, la: p.la, lo: p.lo });
+        break;
+      }
+    }
+    fixes.push({ t: p.t, d: fin ? Math.min(d, C.len - 151) : d, la: p.la, lo: p.lo });
     prev = p;
   }
   out.mode = 'free';
