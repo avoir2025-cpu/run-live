@@ -68,6 +68,7 @@ const S = {
   team: null, runners: [], pts: new Map(), since: null, online: false, lastPoll: 0,
   filter: store.get('filter') || 'all', cheer: store.get('cheer') || { type: 'finish' },
   tab: 'live', sel: null, picking: false, adminCode: null, expanded: false,
+  follow: new Set(store.get('follow') || []),
 };
 const Q = { list: store.get('queue') || [], sending: false, lastSent: store.get('lastSent') };
 const GEO = { watchId: null, lastT: 0, last: null, acc: null, err: null, wake: null };
@@ -213,6 +214,11 @@ function showOnboard(step) {
       <p class="note">建議現在先試一次定位，手機會問你要不要允許使用位置，請按「允許」。</p>
       <button type="button" class="btn primary block lg" id="o-test">試一下定位</button>
       <button type="button" class="btn ghost block" style="margin-top:10px" data-go="app">先看地圖</button>`;
+  } else if (step === 'follow') {
+    h = `${top()}<h1>你想關注誰？</h1><p class="lead">只看你在乎的人。之後在「我」也能改，只存在這支手機。</p>
+      ${followGridHtml()}
+      <button type="button" class="btn primary block lg" id="o-fav-done" style="margin-top:18px">完成</button>
+      <button type="button" class="btn ghost block" style="margin-top:10px" data-go="app">先看全部的人</button>`;
   } else if (step === 'login') {
     const rs = [...S.runners].sort((a, b) => a.nick.localeCompare(b.nick, 'zh-Hant'));
     h = `${top('role')}<h1>點你的名字</h1><p class="lead">接著輸入你加入時設的 PIN。</p>
@@ -233,7 +239,7 @@ function bindOnboard(step) {
     const go = ev.target.closest('[data-go]');
     if (go) {
       const g = go.dataset.go;
-      if (g === 'watch') { S.watcher = true; store.set('watcher', true); return showApp(); }
+      if (g === 'watch') { S.watcher = true; store.set('watcher', true); return S.runners.length ? showOnboard('follow') : showApp(); }
       if (g === 'picker') { location.href = './'; return; }
       if (g === 'app' || (g === 'role' && S.watcher)) return showApp();
       if (step === 'join1') saveJ1();
@@ -273,6 +279,11 @@ function bindOnboard(step) {
     };
   }
   if (step === 'done') $('#o-test').onclick = () => { showApp(); startShare(); };
+  if (step === 'follow') {
+    const upd = () => { const n = favCount(); $('#o-fav-done').textContent = n ? `完成，只看這 ${n} 人` : '完成'; };
+    bindFollowGrid(el, upd); upd();
+    $('#o-fav-done').onclick = () => { if (favCount()) { S.filter = 'fav'; store.set('filter', 'fav'); } showApp(); };
+  }
   if (step === 'login') {
     $('#o-q').oninput = ev => { const q = ev.target.value.trim().toLowerCase(); $('#o-names').querySelectorAll('[data-q]').forEach(b => b.hidden = q && !b.dataset.q.includes(q)); };
   }
@@ -429,17 +440,51 @@ async function goStart() {
 }
 
 // ---------- 篩選 ----------
+// ---------- 關注 ----------
+const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>';
+const favCount = () => S.runners.filter(r => S.follow.has(r.id)).length;
+function toggleFollow(id) {
+  const r = S.runners.find(x => x.id === id);
+  if (S.follow.has(id)) { S.follow.delete(id); toast(`已取消關注 ${r?.nick || ''}`); }
+  else { S.follow.add(id); toast(`已關注 ${r?.nick || ''}`); }
+  store.set('follow', [...S.follow]);
+  if (S.filter === 'fav' && !favCount()) { S.filter = 'all'; store.set('filter', 'all'); }
+  renderAll();
+}
+const followGridHtml = () => {
+  const rs = [...S.runners].sort((a, b) => a.nick.localeCompare(b.nick, 'zh-Hant'));
+  return `<input type="search" class="f-q" placeholder="搜尋暱稱或號碼" aria-label="搜尋">
+    <div class="namegrid">${rs.map(r => `<button type="button" data-fid="${r.id}" aria-pressed="${S.follow.has(r.id)}" data-q="${esc((r.nick + ' ' + (r.bib || '')).toLowerCase())}">${esc(r.nick)}<small>${catName(r.cat)}${r.bib ? '・' + esc(r.bib) : ''}</small></button>`).join('') || '<p class="note">還沒有人加入</p>'}</div>`;
+};
+function bindFollowGrid(box, onChange) {
+  box.querySelector('.f-q').oninput = ev => { const q = ev.target.value.trim().toLowerCase(); box.querySelectorAll('[data-fid]').forEach(b => b.hidden = q && !b.dataset.q.includes(q)); };
+  box.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-fid]'); if (!b) return;
+    const id = b.dataset.fid; S.follow.has(id) ? S.follow.delete(id) : S.follow.add(id);
+    b.setAttribute('aria-pressed', S.follow.has(id)); store.set('follow', [...S.follow]); onChange?.();
+  });
+}
+function openFollow() {
+  openSheet('我關注的人', `<p class="note" style="padding:0">點名字加入或取消。只存在這支手機，別人看不到你關注誰。</p>${followGridHtml()}
+    <button type="button" class="btn primary block lg" id="f-done" style="margin-top:14px">完成</button>`, body => {
+    const upd = () => { $('#f-done').textContent = favCount() ? `完成，只看這 ${favCount()} 人` : '完成'; };
+    bindFollowGrid(body, upd); upd();
+    $('#f-done').onclick = () => { closeSheet(); if (favCount()) { S.filter = 'fav'; store.set('filter', 'fav'); } else if (S.filter === 'fav') S.filter = 'all'; if (S.tab !== 'live') setTab('live'); renderAll(); fitAll(); };
+  });
+}
+
 function renderFilter() {
-  const cats = ['all', ...Object.keys(CAT).filter(c => S.runners.some(r => r.cat === c))];
+  const nFav = favCount();
+  const cats = ['all', ...(nFav ? ['fav'] : []), ...Object.keys(CAT).filter(c => S.runners.some(r => r.cat === c))];
   if (!cats.includes(S.filter)) S.filter = 'all';
-  const h = cats.length > 2 ? cats.map(c => `<button type="button" data-f="${c}" aria-pressed="${S.filter === c}">${c === 'all' ? '全部' : catName(c)}</button>`).join('') : '';
+  const h = (cats.length > 2 || nFav) ? cats.map(c => `<button type="button" data-f="${c}" aria-pressed="${S.filter === c}">${c === 'all' ? '全部' : c === 'fav' ? `★ 關注 ${nFav}` : catName(c)}</button>`).join('') : '';
   const el = $('#filter'); el.hidden = !h; if (el.innerHTML !== h) el.innerHTML = h;
 }
 $('#filter').addEventListener('click', ev => {
   const b = ev.target.closest('[data-f]'); if (!b) return;
   S.filter = b.dataset.f; store.set('filter', S.filter); renderAll(); fitAll();
 });
-const shown = r => S.filter === 'all' || r.cat === S.filter;
+const shown = r => S.filter === 'all' || (S.filter === 'fav' ? (S.follow.has(r.id) || (S.me && r.id === S.me.id)) : r.cat === S.filter);
 
 // ---------- 地圖 ----------
 let map, routeLayers = {}, markers = new Map(), startMarker, cheerMarker;
@@ -507,7 +552,7 @@ function renderMap() {
     if (!a?.pos || !shown(r) || a.status === 'waiting') continue;
     keep.add(r.id);
     const isMe = S.me && r.id === S.me.id;
-    const cls = ['pin', a.estimated && a.status !== 'finished' ? 'est' : '', isMe ? 'me' : '', a.status === 'finished' ? 'done' : '', S.sel === r.id ? 'sel' : ''].join(' ');
+    const cls = ['pin', a.estimated && a.status !== 'finished' ? 'est' : '', isMe ? 'me' : '', a.status === 'finished' ? 'done' : '', S.sel === r.id ? 'sel' : '', S.follow.has(r.id) ? 'fav' : ''].join(' ');
     const html = `<div class="${cls}" style="--c:${cvar(r.cat)}"><span class="dot">${a.status === 'finished' ? '🏁' : esc(initial(r.nick))}</span><span class="nm">${esc(r.nick)}</span></div>`;
     let m = markers.get(r.id);
     if (!m) {
@@ -539,7 +584,7 @@ function renderSel() {
   const el = $('#sel-card'), r = S.runners.find(x => x.id === S.sel), a = r && AN.get(r.id);
   if (!r || !a) { el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = `<button type="button" class="x" aria-label="關閉" id="sel-x">✕</button>
+  el.innerHTML = `<button type="button" class="x" aria-label="關閉" id="sel-x">✕</button><button type="button" class="fav sel-fav" aria-pressed="${S.follow.has(r.id)}" aria-label="${S.follow.has(r.id) ? '取消關注' : '關注'}">${STAR}</button>
     <div style="display:flex;gap:12px;align-items:center">${avatar(r, a)}<div style="min-width:0"><b style="font-size:17px">${esc(r.nick)}</b> <span class="tag">${catName(r.cat)}</span>${r.bib ? ` <span class="tag">#${esc(r.bib)}</span>` : ''}
     <div style="font-size:13px;color:var(--mute)">${statusText(a)}</div></div></div>
     <div class="grid2" style="margin-top:10px;grid-template-columns:repeat(3,1fr);text-align:center">
@@ -548,6 +593,7 @@ function renderSel() {
       <div><div class="num" style="font-size:24px;font-weight:700">${a.status === 'finished' ? fmtClock(a.finishAt) : fmtClock(a.etaFinish)}</div><small style="color:var(--mute)">${a.status === 'finished' ? '抵達' : '預估完賽'}</small></div>
     </div>`;
   $('#sel-x').onclick = () => { S.sel = null; renderMap(); renderSel(); renderList(); };
+  el.querySelector('.sel-fav').onclick = () => toggleFollow(r.id);
 }
 function avatar(r, a) {
   const cls = a?.status === 'waiting' ? 'wait' : a?.estimated && a.status !== 'finished' ? 'est' : '';
@@ -666,19 +712,27 @@ function renderList() {
       else if (S.cheer.type !== 'finish' && a.status !== 'waiting') { big = fmtClock(a.etaFinish); lbl = S.cheer.type === 'point' ? '不經過・預估完賽' : '預估完賽'; }
       else { big = fmtClock(a.etaFinish); lbl = '預估完賽'; }
       const pct = Math.min(100, (a.dNow || 0) / a.len * 100);
-      h += `<button type="button" class="rc ${S.sel === r.id ? 'sel' : ''} ${isMe ? 'me' : ''}" data-rid="${r.id}" style="--c:${cvar(r.cat)}">
+      const fav = S.follow.has(r.id);
+      h += `<div class="rc ${S.sel === r.id ? 'sel' : ''} ${isMe ? 'me' : ''} ${fav ? 'is-fav' : ''}" data-rid="${r.id}" style="--c:${cvar(r.cat)}">
+        <button type="button" class="rc-hit" data-pick="${r.id}" aria-label="在地圖上看 ${esc(r.nick)}"></button>
         ${avatar(r, a)}
         <span class="nm"><b>${esc(r.nick)}</b>${isMe ? '<span class="tag">我</span>' : ''}${r.bib ? `<span class="tag">#${esc(r.bib)}</span>` : ''}</span>
         <span class="eta ${a.status === 'finished' ? 'done' : ''}"><b>${big}</b><small>${lbl}</small></span>
+        <button type="button" class="fav" data-fav="${r.id}" aria-pressed="${fav}" aria-label="${fav ? '取消關注' : '關注'} ${esc(r.nick)}">${STAR}</button>
         <span class="sub">${statusText(a)}</span>
         <span class="bar"><span class="num">${a.status === 'finished' ? (a.len / 1000).toFixed(1) : ((a.dNow || 0) / 1000).toFixed(1)}</span><span>km</span><span class="track"><i style="width:${pct.toFixed(1)}%"></i></span><span>${a.status === 'waiting' ? (r.target_sec ? `目標 ${hm(r.target_sec)}` : '') : `${fmtPace(a.pace)}/km`}</span></span>
         ${ct?.more?.length ? `<span class="passes">之後再經過：約 ${ct.more.join('、')}</span>` : ''}
-      </button>`;
+      </div>`;
     }
   }
+  if (!h && S.filter === 'fav') h = '<div class="empty"><b>還沒有關注任何人</b><button type="button" class="btn dark" data-act-follow style="margin-top:10px">選要關注的人</button></div>';
   el.innerHTML = h || '<div class="empty">這個組別還沒有人</div>';
 }
-$('#list').addEventListener('click', ev => { const b = ev.target.closest('[data-rid]'); if (b) selectRunner(b.dataset.rid, true); });
+$('#list').addEventListener('click', ev => {
+  const f = ev.target.closest('[data-fav]'); if (f) { toggleFollow(f.dataset.fav); return; }
+  if (ev.target.closest('[data-act-follow]')) { openFollow(); return; }
+  const b = ev.target.closest('[data-pick]'); if (b) selectRunner(b.dataset.pick, true);
+});
 
 // ---------- 定位分享 ----------
 function startShare(silent) {
@@ -755,6 +809,7 @@ function renderMe() {
   const el = $('#me');
   if (!S.me) {
     el.innerHTML = `<div class="me-head"><span class="av" style="--c:#555">${ICON.cheer.replace('<svg', '<svg width="28" height="28"')}</span><div><h2>加油團</h2><p>你正在看大家的位置</p></div></div>
+      <div class="sec"><button type="button" class="item" data-follow><div class="grow"><b>我關注的人</b><span>${favCount() ? `${favCount()} 人` : '還沒選'}</span></div>${ICON.chev}</button></div>
       <div class="sec"><button type="button" class="item" data-go="join1"><div class="grow"><b>我也要跑</b><span>加入地圖，比賽時分享位置</span></div>${ICON.chev}</button>
       <button type="button" class="item" data-go="login"><div class="grow"><b>我已經加入過</b><span>換手機登入</span></div>${ICON.chev}</button></div>
       ${adminBlock()}`;
@@ -773,6 +828,9 @@ function renderMe() {
     <div class="sec"><h3>成績</h3>
       <button type="button" class="item" id="it-finish"><div class="grow"><b>大會正式成績</b><span>${m.finish_sec ? '名單和圖卡都用這個時間' : '跑完再填，之後也能改'}</span></div><span class="val">${m.finish_sec ? fmtHMS(m.finish_sec) : '—'}</span>${ICON.chev}</button>
       <a class="item" href="${$('#tab-card').getAttribute('href')}" style="text-decoration:none;color:inherit"><div class="grow"><b>做完賽圖卡</b><span>IG 限動尺寸</span></div>${ICON.chev}</a>
+    </div>
+    <div class="sec"><h3>看別人</h3>
+      <button type="button" class="item" data-follow><div class="grow"><b>我關注的人</b><span>${favCount() ? `${favCount()} 人` : '還沒選，選了可以只看他們'}</span></div>${ICON.chev}</button>
     </div>
     <div class="sec"><h3>我的資料</h3>
       <button type="button" class="item" id="it-edit"><div class="grow"><b>暱稱、組別、號碼布、目標</b><span>${esc(m.nick)}・${catName(m.cat)}${m.bib ? `・#${esc(m.bib)}` : ''}</span></div>${ICON.chev}</button>
@@ -799,6 +857,7 @@ function renderMe() {
   bindMeCommon();
 }
 function bindMeCommon() {
+  $('#me').querySelectorAll('[data-follow]').forEach(b => b.onclick = openFollow);
   $('#me').querySelectorAll('[data-go]').forEach(b => b.onclick = () => showOnboard(b.dataset.go));
   const al = $('#admin-open'); if (al) al.onclick = openAdminLogin;
 }
