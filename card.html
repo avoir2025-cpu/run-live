@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:ital,wght@1,800&family=Noto+Sans+TC:wght@700;900&display=swap">
-<link rel="stylesheet" href="ui.css?v=5">
+<link rel="stylesheet" href="ui.css?v=8">
 <style>
 body{min-block-size:100dvh}
 .chead{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;background:var(--ink);color:#fff;
@@ -69,7 +69,7 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
     <div>
       <section class="box">
         <h2>完賽時間</h2>
-        <input id="in-time" class="timein" type="text" inputmode="numeric" placeholder="0:00:00" aria-label="完賽時間（時:分:秒）">
+        <input id="in-time" class="timein" type="text" inputmode="numeric" placeholder="0:00:00" aria-label="完賽時間（時:分:秒）" aria-describedby="time-src">
         <p class="src" id="time-src"></p>
         <button type="button" class="btn dark block" id="btn-sync" style="margin-top:10px" hidden>存成我的正式成績</button>
       </section>
@@ -110,7 +110,7 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script type="module">
-import { CAT, analyze, fmtHMS, parseHMS } from './calc.js';
+import { CAT, analyze, loadRoutes, fmtHMS, parseHMS, bindTimeInput } from './calc.js?v=7';
 import { SB_URL, SB_KEY } from './config.js';
 
 /* ====== 版型設定（拿到正式模板後只要改這一段） ======
@@ -131,11 +131,12 @@ const LAYOUT = {
 const THEMES = { red: '#a3001b', navy: '#0b2a5b', black: '#111111', green: '#0f5132', orange: '#c2410c' };
 const TITLES = ['FULL MARATHON FINISHER', 'HALF MARATHON FINISHER', '10K FINISHER', '5K FINISHER', 'PERSONAL BEST', 'FIRST MARATHON'];
 
-const TEAM = new URLSearchParams(location.search).get('t') || 'tc2026';
+let lastEv = null; try { lastEv = JSON.parse(localStorage.getItem('rl__last')); } catch { }
+const TEAM = new URLSearchParams(location.search).get('t') || lastEv || 'tc2026';
 const K = k => `rl_${TEAM}_${k}`;
 const ls = { get(k) { try { return JSON.parse(localStorage.getItem(K(k))); } catch { return null; } }, set(k, v) { try { localStorage.setItem(K(k), JSON.stringify(v)); } catch { } } };
 const $ = s => document.querySelector(s);
-if (TEAM !== 'tc2026') $('#back').href = `./?t=${encodeURIComponent(TEAM)}`;
+$('#back').href = `./?t=${encodeURIComponent(TEAM)}`;
 let toastT; const toast = m => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3000); };
 async function rpc(fn, args) {
   const r = await fetch(SB_URL + fn, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
@@ -145,7 +146,8 @@ async function rpc(fn, args) {
 // ---------- 預設值 ----------
 const saved = ls.get('card') || {};
 let me = ls.get('me');
-const token = ls.get('token'), code = ls.get('code');
+let gcode = null; try { gcode = JSON.parse(localStorage.getItem('rl__code')); } catch { }
+const token = ls.get('token'), code = ls.get('code') || gcode;
 const titleByCat = { full: TITLES[0], half: TITLES[1], '10k': TITLES[2], '5k': TITLES[3] };
 const F = {
   name: saved.name ?? me?.nick ?? '', bib: saved.bib ?? me?.bib ?? '', sub: saved.sub ?? '',
@@ -165,7 +167,7 @@ function setSrc() {
   const v = parseHMS($('#in-time').value), el = $('#time-src');
   const official = me?.finish_sec;
   if (official && v === official) { el.className = 'src okc'; el.textContent = '✓ 這是你登記的大會正式成績'; }
-  else if (!v) { el.className = 'src'; el.textContent = '填大會公告的晶片時間，格式像 4:12:33'; }
+  else if (!v) { el.className = 'src'; el.textContent = '直接打數字，冒號會自動加上。例如 4 小時 12 分 33 秒，打 41233'; }
   else if (gpsSec && v === gpsSec) { el.className = 'src warnc'; el.textContent = '⚠ 這是 GPS 估計的時間，請改成大會正式成績'; }
   else { el.className = 'src'; el.textContent = official ? `你登記的正式成績是 ${fmtHMS(official)}` : '這個時間還沒存成你的正式成績'; }
   $('#btn-sync').hidden = !(token && v && v !== official);
@@ -183,6 +185,7 @@ if (token) {
     if (!m.finish_sec && code) {
       try {
         const st = await rpc('runlive_state', { p_team: TEAM, p_code: code, p_since: null });
+        await loadRoutes(TEAM, st.team?.config?.routes);
         const r = st.runners.find(x => x.id === m.id);
         const a = analyze(r, st.points.filter(p => p.r === m.id), st.team.config, Date.now());
         if (a.status === 'finished') { gpsSec = a.finishSec; if (!$('#in-time').value) setTime(gpsSec); }
@@ -303,12 +306,12 @@ $('#titles').onclick = ev => {
 };
 $('#in-time').addEventListener('change', () => {
   const s = parseHMS($('#in-time').value);
-  if (!s && $('#in-time').value.trim()) return toast('時間格式像 4:12:33');
+  if (!s && $('#in-time').value.trim()) return toast('分和秒不能超過 59');
   if (s) $('#in-time').value = fmtHMS(s);
   readForm(); setSrc(); redraw();
 });
 $('#btn-sync').onclick = async () => {
-  const s = parseHMS($('#in-time').value); if (!s) return toast('先填完賽時間，格式像 4:12:33');
+  const s = parseHMS($('#in-time').value); if (!s) return toast('先填完賽時間');
   try { me = await rpc('runlive_update', { p_token: token, p_patch: { finish_sec: s } }); ls.set('me', me); setSrc(); toast(`已存成正式成績 ${fmtHMS(s)}，名單也會更新`); }
   catch (e) { toast(e.code === 'bad_token' ? '登入失效，請回地圖頁重新登入' : '儲存失敗，稍後再試'); }
 };
@@ -328,6 +331,7 @@ $('#btn-save').onclick = async () => {
   $('#dlg-img').src = url; $('#dlg').showModal();
 };
 $('#dlg-close').onclick = () => $('#dlg').close();
+bindTimeInput($('#in-time'), true);
 readForm(); redraw();
 </script>
 </body>

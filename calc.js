@@ -1,5 +1,4 @@
 // 路線對位、配速、預估抵達
-import { ROUTES } from './routes.js';
 
 export const CAT = {
   full: { name: '全馬', len: 42195, pace: 0.39, color: '#d62839', limit: 6.5 * 3600 },
@@ -16,16 +15,28 @@ export function hav(a1, o1, a2, o2) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-// 預先算好每條路線的平面座標與累積距離（已縮放到官方距離）
+// 每場賽事的路線（routes/<場次>.json）；載入後先算好平面座標與累積距離（已縮放到官方距離）
+export const ROUTES = {};
 const BUILT = {};
-for (const [k, r] of Object.entries(ROUTES)) {
-  const [la0, lo0] = r.pts[0];
-  const kx = Math.cos(la0 * Math.PI / 180) * 111320, ky = 110540;
-  const xy = r.pts.map(([la, lo]) => [(lo - lo0) * kx, (la - la0) * ky]);
-  const raw = [0];
-  for (let i = 1; i < r.pts.length; i++) raw.push(raw[i - 1] + hav(...r.pts[i - 1], ...r.pts[i]));
-  const sc = r.len / raw[raw.length - 1];
-  BUILT[k] = { pts: r.pts, xy, cum: raw.map(v => v * sc), sc, la0, lo0, kx, ky, len: r.len };
+export function setRoutes(obj) {
+  for (const k of Object.keys(ROUTES)) delete ROUTES[k];
+  for (const k of Object.keys(BUILT)) delete BUILT[k];
+  for (const [k, r] of Object.entries(obj || {})) {
+    if (!r?.pts?.length) continue;
+    ROUTES[k] = r;
+    const [la0, lo0] = r.pts[0];
+    const kx = Math.cos(la0 * Math.PI / 180) * 111320, ky = 110540;
+    const xy = r.pts.map(([la, lo]) => [(lo - lo0) * kx, (la - la0) * ky]);
+    const raw = [0];
+    for (let i = 1; i < r.pts.length; i++) raw.push(raw[i - 1] + hav(...r.pts[i - 1], ...r.pts[i]));
+    const sc = r.len / raw[raw.length - 1];
+    BUILT[k] = { pts: r.pts, xy, cum: raw.map(v => v * sc), sc, la0, lo0, kx, ky, len: r.len };
+  }
+}
+export async function loadRoutes(slug, has) {
+  if (!has) { setRoutes({}); return; }
+  try { const r = await fetch(`routes/${encodeURIComponent(slug)}.json?v=1`); setRoutes(r.ok ? await r.json() : {}); }
+  catch { setRoutes({}); }
 }
 export const routeOf = cat => BUILT[cat] || null;
 
@@ -234,6 +245,26 @@ export const fmtPace = p => { if (!p || !isFinite(p)) return '–'; const s = Ma
 export const fmtHMS = s => { if (s == null) return '–'; s = Math.round(s); return `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 export const fmtClock = t => t == null ? '–' : new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit', hour12: false }).format(t);
 export const fmtAgo = ms => { if (ms == null) return '尚無定位'; const m = Math.round(ms / 60e3); return m < 1 ? '剛剛' : m < 60 ? `${m} 分鐘前` : `${Math.floor(m / 60)} 小時前`; };
+// 只打數字，冒號自動補（像計時器從右邊填）：41233 → 4:12:33；sec=false 時 430 → 4:30
+export function fmtDigits(v, sec = true) {
+  let d = String(v || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (!d) return '';
+  d = d.slice(0, sec ? 6 : 4);
+  const p = d.padStart(sec ? 5 : 3, '0');
+  return sec ? `${+p.slice(0, -4)}:${p.slice(-4, -2)}:${p.slice(-2)}` : `${+p.slice(0, -2)}:${p.slice(-2)}`;
+}
+export function bindTimeInput(el, sec = true) {
+  if (!el || el._timeBound) return;
+  el._timeBound = true;
+  el.setAttribute('inputmode', 'numeric'); el.setAttribute('autocomplete', 'off');
+  el.addEventListener('focus', () => setTimeout(() => el.select(), 0));
+  el.addEventListener('input', () => {
+    const f = fmtDigits(el.value, sec);
+    if (el.value !== f) el.value = f;
+    try { el.setSelectionRange(f.length, f.length); } catch { }
+  });
+}
+
 export function parseHMS(str) {
   const m = String(str || '').trim().match(/^(\d{1,2})[:：](\d{1,2})(?:[:：](\d{1,2}))?$/);
   if (!m) return null;

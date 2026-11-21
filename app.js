@@ -1,11 +1,15 @@
-import { CAT, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav } from './calc.js';
-import { ROUTES } from './routes.js';
+import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput } from './calc.js?v=7';
 import { SB_URL, SB_KEY } from './config.js';
 
 // ---------- 基本 ----------
 const qs = new URLSearchParams(location.search);
-const TEAM = qs.get('t') || 'tc2026';
+const TEAM = qs.get('t') || '';
 const K = k => `rl_${TEAM}_${k}`;
+// 跨場次共用（團體代碼、上次看的賽事）
+const G = {
+  get(k) { try { return JSON.parse(localStorage.getItem('rl__' + k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem('rl__' + k, JSON.stringify(v)); } catch { } },
+};
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(K(k))); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(K(k), JSON.stringify(v)); } catch { } },
@@ -48,19 +52,19 @@ async function rpc(fn, args) {
 // 群組連結帶代碼：#k=代碼（不會送到伺服器），讀完就從網址拿掉
 {
   const m = location.hash.match(/k=([^&]+)/);
-  if (m) { store.set('code', decodeURIComponent(m[1]).trim().toLowerCase()); history.replaceState(null, '', location.pathname + location.search); }
+  if (m) { const c = decodeURIComponent(m[1]).trim().toLowerCase(); G.set('code', c); if (TEAM) store.set('code', c); history.replaceState(null, '', location.pathname + location.search); }
 }
 // LINE 內建瀏覽器：建議外開
 if (/\bLine\//i.test(navigator.userAgent)) {
   $('#line-tip').hidden = false;
   const u = new URL(location.href); u.searchParams.set('openExternalBrowser', '1');
-  const code = store.get('code'); if (code) u.hash = 'k=' + encodeURIComponent(code);
+  const code = (TEAM && store.get('code')) || G.get('code'); if (code) u.hash = 'k=' + encodeURIComponent(code);
   $('#line-open').href = u.toString();
 }
 
 // ---------- 狀態 ----------
 const S = {
-  code: store.get('code'), token: store.get('token'), me: store.get('me'), watcher: store.get('watcher'),
+  code: (TEAM && store.get('code')) || G.get('code'), token: store.get('token'), me: store.get('me'), watcher: store.get('watcher'),
   team: null, runners: [], pts: new Map(), since: null, online: false, lastPoll: 0,
   filter: store.get('filter') || 'all', cheer: store.get('cheer') || { type: 'finish' },
   tab: 'live', sel: null, picking: false, adminCode: null, expanded: false,
@@ -104,14 +108,44 @@ function phase(cat) {
   return 'post';
 }
 
+// ---------- 賽事選單 ----------
+async function showPicker() {
+  $('#boot').hidden = true; $('#gate').hidden = true; $('#app').hidden = true;
+  const el = $('#onboard'); el.hidden = false;
+  el.innerHTML = `<div class="ob"><div class="ob-top"><div class="logo sm"><span class="pulse"></span>跑團 <b>LIVE</b></div></div><h1>選擇賽事</h1><p class="lead">每場賽事有自己的地圖和名單。</p><div id="ev-list"><p class="note">載入中…</p></div></div>`;
+  let evs = [];
+  try { evs = await rpc('runlive_events', {}); }
+  catch (e) { $('#ev-list').innerHTML = `<p class="note">${esc(e.message)}</p><button type="button" class="btn dark" id="ev-retry">再試一次</button>`; $('#ev-retry').onclick = showPicker; return; }
+  const last = G.get('last'), now = Date.now();
+  const card = e => {
+    const gun = Date.parse(`${e.date}T${(e.starts && Object.values(e.starts).sort()[0]) || '06:00'}:00+08:00`);
+    const days = Math.ceil((gun - now) / 86400e3);
+    const when = isNaN(gun) ? '' : now > gun + 12 * 3600e3 ? '已結束' : days > 1 ? `還有 ${days} 天` : days === 1 ? '明天' : '今天';
+    const dt = e.date ? Date.parse(e.date + 'T12:00:00+08:00') : NaN;
+    const d = isNaN(dt) ? '' : new Intl.DateTimeFormat('en-US', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Taipei' }).format(dt);
+    const wd = isNaN(dt) ? '' : new Intl.DateTimeFormat('zh-TW', { weekday: 'short', timeZone: 'Asia/Taipei' }).format(dt);
+    return `<button type="button" class="ev ${e.practice ? 'practice' : ''}" data-ev="${esc(e.slug)}">
+      <span class="ev-date"><b>${esc(d)}</b><small>${esc(wd)}</small><small>${esc(when)}</small></span>
+      <span class="ev-main"><b>${esc(e.name)}</b><span>${(e.cats || []).map(c => `<i class="tag">${catName(c)}</i>`).join('')}${e.runners ? `<i class="tag">${e.runners} 人加入</i>` : ''}${e.slug === last ? '<i class="tag last">上次看的</i>' : ''}</span></span>
+      ${'<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'}</button>`;
+  };
+  const races = evs.filter(e => !e.practice), prac = evs.filter(e => e.practice);
+  $('#ev-list').innerHTML = (races.map(card).join('') || '<p class="note">目前沒有賽事</p>') +
+    (prac.length ? `<div class="grp" style="margin-top:22px">練習</div>${prac.map(card).join('')}` : '');
+  $('#ev-list').onclick = ev => { const b = ev.target.closest('[data-ev]'); if (b) location.href = '?t=' + encodeURIComponent(b.dataset.ev); };
+}
+
 // ---------- 開場 ----------
 async function boot() {
+  if (!TEAM) return showPicker();
+  G.set('last', TEAM);
   if (!S.code) return showGate();
   try { await poll(true); }
   catch (e) {
-    if (e.code === 'bad_code') { store.del('code'); S.code = null; return showGate('團體代碼已更換，請重新輸入'); }
+    if (e.code === 'bad_code') { store.del('code'); S.code = null; return showGate('這場賽事的代碼不一樣，請輸入'); }
     toast('連不上伺服器，稍後會自動重試');
   }
+  await loadRoutes(TEAM, S.team?.config?.routes);
   if (S.token) {
     rpc('runlive_me', { p_token: S.token }).then(me => { S.me = me; store.set('me', me); renderAll(); })
       .catch(e => { if (e.code === 'bad_token') { logoutLocal(); toast('這支手機已登出（可能在別支手機登入過）'); } });
@@ -124,14 +158,16 @@ async function boot() {
 function showGate(msg) {
   $('#boot').hidden = true;
   $('#gate').hidden = false; $('#app').hidden = true; $('#onboard').hidden = true;
-  if (TEAM !== 'tc2026') $('#gate-sub').textContent = `測試場次（${TEAM}）`;
+  rpc('runlive_events', {}).then(evs => { const e = evs.find(x => x.slug === TEAM); if (e) $('#gate-sub').textContent = `${e.name}・${e.date}`; }).catch(() => { });
+  $('#gate-switch').onclick = () => { location.href = './'; };
   if (msg) toast(msg);
   $('#gate-form').onsubmit = async ev => {
     ev.preventDefault();
     const code = $('#gate-code').value.trim().toLowerCase();
     try {
       const st = await rpc('runlive_state', { p_team: TEAM, p_code: code, p_since: null });
-      S.code = code; store.set('code', code); applyState(st, true);
+      S.code = code; store.set('code', code); G.set('code', code); applyState(st, true);
+      await loadRoutes(TEAM, S.team?.config?.routes);
       $('#gate').hidden = true;
       if (S.me || S.watcher) showApp(); else showOnboard('role');
     } catch (e) { toast(e.message); }
@@ -149,7 +185,7 @@ function showOnboard(step) {
   $('#boot').hidden = true;
   $('#gate').hidden = true; $('#app').hidden = true;
   const el = $('#onboard'); el.hidden = false;
-  const top = (back, n) => `<div class="ob-top">${back ? `<button type="button" class="ob-back" data-go="${back}">← 上一步</button>` : '<div class="logo sm"><span class="pulse"></span>跑團 <b>LIVE</b></div>'}
+  const top = (back, n) => `<div class="ob-top">${back ? `<button type="button" class="ob-back" data-go="${back}">← 上一步</button>` : '<button type="button" class="ob-back" data-go="picker">← 換賽事</button>'}
     ${n ? `<div class="ob-steps"><i class="${n >= 1 ? 'on' : ''}"></i><i class="${n >= 2 ? 'on' : ''}"></i></div>` : ''}</div>`;
   let h = '';
   if (step === 'role') {
@@ -159,7 +195,7 @@ function showOnboard(step) {
       <p style="text-align:center;margin-top:18px;color:var(--mute)">已經加入過了？<button type="button" class="linkbtn" data-go="login">換手機登入</button></p>`;
   } else if (step === 'join1') {
     h = `${top('role', 1)}<h1>加入跑團地圖</h1><p class="lead">地圖和名單上會顯示你的暱稱。</p>
-      <div class="field"><span class="lbl">組別</span><div class="opts" id="o-cat">${Object.entries(CAT).map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${J.cat === k}">${c.name}<small>${(c.len / 1000).toFixed(k === 'half' ? 1 : 0)} km</small></button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">組別</span><div class="opts" id="o-cat">${offered().map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${J.cat === k}">${c.name}<small>${(c.len / 1000).toFixed(k === 'half' ? 1 : 0)} km</small></button>`).join('')}</div></div>
       <div class="field"><label for="o-nick">暱稱</label><input id="o-nick" type="text" maxlength="12" autocomplete="nickname" enterkeyhint="next" value="${esc(J.nick)}"></div>
       <div class="field"><label for="o-bib">號碼布（選填）</label><input id="o-bib" type="text" inputmode="numeric" maxlength="8" enterkeyhint="done" value="${esc(J.bib)}"><span class="hint">大會物資約賽前一週寄到，收到再補也可以。</span></div>
       <button type="button" class="btn primary block lg" id="o-next">下一步</button>`;
@@ -168,7 +204,7 @@ function showOnboard(step) {
     h = `${top('join1', 2)}<h1>目標時間和 PIN</h1><p class="lead">還沒有定位時，會用目標配速推算你的位置。</p>
       <div class="field"><span class="lbl">目標完賽時間</span><div class="opts" id="o-tgt">${list.map(t => `<button type="button" class="opt" data-t="${t}" aria-pressed="${J.pick === t}"><span class="num">${t}</span></button>`).join('')}
 </div><div class="opts" style="grid-template-columns:1fr 1fr;margin-top:8px"><button type="button" class="opt" data-t="none" aria-pressed="${J.pick === 'none'}">還不確定</button><button type="button" class="opt" data-t="custom" aria-pressed="${J.pick === 'custom'}">自己填</button></div>
-        <input id="o-tgt-c" type="text" inputmode="numeric" placeholder="例如 4:15" ${J.pick === 'custom' ? '' : 'hidden'}></div>
+        <input id="o-tgt-c" type="text" inputmode="numeric" placeholder="0:00" ${J.pick === 'custom' ? '' : 'hidden'}><span class="hint" ${J.pick === 'custom' ? '' : 'hidden'} id="o-tgt-h">直接打數字，例如 4 小時 15 分打 415</span></div>
       ${pinField('o-pin', '設一組 4 位數 PIN', '換手機時，點你的名字再輸入 PIN 就能登入。')}
       <button type="button" class="btn primary block lg" id="o-done">完成加入</button>`;
   } else if (step === 'done') {
@@ -198,6 +234,7 @@ function bindOnboard(step) {
     if (go) {
       const g = go.dataset.go;
       if (g === 'watch') { S.watcher = true; store.set('watcher', true); return showApp(); }
+      if (g === 'picker') { location.href = './'; return; }
       if (g === 'app' || (g === 'role' && S.watcher)) return showApp();
       if (step === 'join1') saveJ1();
       return showOnboard(g);
@@ -205,7 +242,7 @@ function bindOnboard(step) {
     const c = ev.target.closest('[data-cat]');
     if (c) { J.cat = c.dataset.cat; J.pick = null; el.querySelectorAll('[data-cat]').forEach(b => b.setAttribute('aria-pressed', b === c)); }
     const t = ev.target.closest('[data-t]');
-    if (t) { J.pick = t.dataset.t; el.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#o-tgt-c').hidden = J.pick !== 'custom'; if (J.pick === 'custom') $('#o-tgt-c').focus(); }
+    if (t) { J.pick = t.dataset.t; el.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#o-tgt-c').hidden = $('#o-tgt-h').hidden = J.pick !== 'custom'; if (J.pick === 'custom') $('#o-tgt-c').focus(); }
     const n = ev.target.closest('#o-names [data-rid]');
     if (n) showOnboard('pin:' + n.dataset.rid);
   };
@@ -221,9 +258,10 @@ function bindOnboard(step) {
     };
   }
   if (step === 'join2') {
+    bindTimeInput($('#o-tgt-c'), false);
     $('#o-done').onclick = async () => {
       let target = null;
-      if (J.pick === 'custom') { target = parseHMS($('#o-tgt-c').value); if (!target) return toast('目標時間格式像 4:15'); }
+      if (J.pick === 'custom') { target = parseHMS($('#o-tgt-c').value); if (!target) return toast('先填目標時間，分鐘不能超過 59'); }
       else if (J.pick && J.pick !== 'none') target = parseHMS(J.pick);
       const pin = $('#o-pin').value.trim();
       if (!/^\d{4}$/.test(pin)) { $('#o-pin').focus(); return toast(ERR.bad_pin); }
@@ -267,7 +305,9 @@ function showApp() {
   setTab(S.tab); renderAll(); setTimeout(fitAll, 200);
 }
 document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
-$('#tab-card').href = 'card.html' + (TEAM !== 'tc2026' ? `?t=${encodeURIComponent(TEAM)}` : '');
+$('#btn-event').onclick = () => { location.href = './'; };
+$('#tab-card').href = 'card.html?t=' + encodeURIComponent(TEAM);
+const offered = () => { const c = S.team?.config?.cats; return Object.entries(CAT).filter(([k]) => !c || c.includes(k)); };
 function setTab(tab) {
   S.tab = tab;
   $('#view-live').hidden = tab !== 'live'; $('#view-me').hidden = tab !== 'me';
@@ -288,6 +328,8 @@ function applyState(st, full) {
   }
   const ids = new Set(S.runners.map(r => r.id));
   for (const id of S.pts.keys()) if (!ids.has(id)) S.pts.delete(id);
+  $('#ev-name').textContent = S.team?.config?.short || S.team?.name || '賽事';
+  document.title = `跑團 LIVE｜${S.team?.config?.short || S.team?.name || ''}`;
   if (S.me) {
     const m = S.runners.find(r => r.id === S.me.id);
     if (m) { S.me = { ...S.me, ...m }; store.set('me', S.me); }
@@ -416,7 +458,8 @@ function initMap() {
     }
     routeLayers[cat] = g;
   }
-  startMarker = L.marker(ROUTES.full.pts[0], { icon: L.divIcon({ className: '', html: '<span class="sf">起終點</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: -50 }).addTo(map);
+  const first = Object.values(ROUTES)[0];
+  if (first) startMarker = L.marker(first.pts[0], { icon: L.divIcon({ className: '', html: '<span class="sf">起終點</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: -50 }).addTo(map);
   const zoomCls = () => { $('#map').classList.toggle('zoom-hi', map.getZoom() >= 15); $('#map').classList.toggle('zoom-mid', map.getZoom() >= 13); };
   map.on('zoomend', zoomCls); zoomCls();
   map.on('click', onMapClick);
@@ -442,7 +485,12 @@ function fitAll() {
   const opt = { paddingTopLeft: [24, 64], paddingBottomRight: [64, 30], maxZoom: 15 };
   if (ll.length >= 2) map.fitBounds(L.latLngBounds(ll), opt);
   else if (ll.length === 1) map.setView(ll[0], 14);
-  else { const c = S.filter !== 'all' && ROUTES[S.filter] ? S.filter : 'full'; map.fitBounds(L.latLngBounds((ROUTES[c] || ROUTES.full).pts), opt); }
+  else {
+    const r = ROUTES[S.filter] || ROUTES.full || Object.values(ROUTES)[0];
+    if (r) map.fitBounds(L.latLngBounds(r.pts), opt);
+    else if (GEO.last) map.setView([GEO.last.la, GEO.last.lo], 14);
+    else map.setView([23.75, 120.95], 8);
+  }
 }
 function renderMap() {
   const useRoute = S.team?.config?.useRoute !== false;
@@ -452,7 +500,7 @@ function renderMap() {
   }
   const waiting = S.runners.filter(r => shown(r) && AN.get(r.id)?.status === 'waiting').length;
   const sfh = `<span class="sf">${ICON.flag.replace('<svg', '<svg width="14" height="14"')}起終點${waiting ? `・${waiting} 人待起跑` : ''}</span>`;
-  if (startMarker._h !== sfh) { startMarker.setIcon(L.divIcon({ className: '', html: sfh, iconSize: null })); startMarker._h = sfh; }
+  if (startMarker && startMarker._h !== sfh) { startMarker.setIcon(L.divIcon({ className: '', html: sfh, iconSize: null })); startMarker._h = sfh; }
   const keep = new Set();
   for (const r of S.runners) {
     const a = AN.get(r.id);
@@ -545,8 +593,9 @@ $('#btn-cheer').onclick = openCheer;
 function openCheer() {
   const kms = [5, 10, 15, 20, 21.1, 25, 30, 35, 40, 41];
   openSheet('看誰幾點到', `
-    <button type="button" class="choice" data-c="me">${ICON.me}<span><b>用我現在的位置</b><span>站在路邊加油時最好用</span></span></button>
-    <button type="button" class="choice" data-c="tap">${ICON.tap}<span><b>在地圖上點一下</b><span>先選好要去哪裡加油</span></span></button>
+    ${Object.keys(ROUTES).length ? '' : '<p class="note" style="padding:0">這場沒有大會路線，只能用公里數或終點。</p>'}
+    <button type="button" class="choice" data-c="me" ${Object.keys(ROUTES).length ? '' : 'hidden'}>${ICON.me}<span><b>用我現在的位置</b><span>站在路邊加油時最好用</span></span></button>
+    <button type="button" class="choice" data-c="tap" ${Object.keys(ROUTES).length ? '' : 'hidden'}>${ICON.tap}<span><b>在地圖上點一下</b><span>先選好要去哪裡加油</span></span></button>
     <button type="button" class="choice" data-c="finish" aria-pressed="${S.cheer.type === 'finish'}">${ICON.flag}<span><b>終點</b><span>看每個人預估幾點完賽</span></span></button>
     <div class="field" style="margin-bottom:4px"><span class="lbl">或選公里數</span></div>
     <div class="kms">${kms.map(k => `<button type="button" data-km="${k}" aria-pressed="${S.cheer.type === 'km' && S.cheer.km === k}">${k}</button>`).join('')}</div>`, body => {
@@ -774,13 +823,14 @@ function openFinish(justArrived) {
   const a = AN.get(S.me.id), gps = a?.status === 'finished' && !a.official ? a.finishSec : null;
   openSheet(justArrived ? '🎉 恭喜完賽！' : '大會正式成績', `
     <p class="note" style="padding:0">${justArrived ? '先休息喝水！晶片成績公告後再回來填也可以。' : '填大會公告的晶片時間，名單和完賽圖卡都會用這個時間。'}</p>
-    <div class="field"><label for="s-fin">完賽時間（時:分:秒）</label><input id="s-fin" type="text" inputmode="numeric" placeholder="例如 4:12:33" value="${S.me.finish_sec ? fmtHMS(S.me.finish_sec) : ''}" style="font-family:var(--num);font-size:28px;font-weight:700;min-block-size:56px">
+    <div class="field"><label for="s-fin">完賽時間（時:分:秒）</label><input id="s-fin" type="text" inputmode="numeric" placeholder="0:00:00" value="${S.me.finish_sec ? fmtHMS(S.me.finish_sec) : ''}" style="font-family:var(--num);font-size:28px;font-weight:700;min-block-size:56px;text-align:center"><span class="hint">直接打數字，冒號會自動加上。例如 4 小時 12 分 33 秒，打 41233</span>
     ${gps ? `<span class="hint">GPS 估計約 ${fmtHMS(gps)}，請以大會成績為準。</span>` : ''}</div>
     <button type="button" class="btn primary block lg" id="s-ok">儲存成績</button>
     ${S.me.finish_sec ? '<button type="button" class="btn ghost block" id="s-clear" style="margin-top:8px">清除成績</button>' : ''}
     <a class="btn dark block" style="margin:10px 0" href="${$('#tab-card').getAttribute('href')}">做完賽圖卡</a>`, () => {
+    bindTimeInput($('#s-fin'), true);
     $('#s-ok').onclick = async () => {
-      const s = parseHMS($('#s-fin').value); if (!s) return toast('格式像 4:12:33');
+      const s = parseHMS($('#s-fin').value); if (!s) return toast('先填完賽時間，分和秒不能超過 59');
       if (await update({ finish_sec: s }, `已儲存 ${fmtHMS(s)}`)) closeSheet();
     };
     const c = $('#s-clear'); if (c) c.onclick = async () => { if (await update({ finish_sec: null }, '已清除成績')) closeSheet(); };
@@ -790,15 +840,16 @@ function openEdit() {
   const m = S.me;
   openSheet('我的資料', `
     <div class="field"><label for="e-nick">暱稱</label><input id="e-nick" type="text" maxlength="12" value="${esc(m.nick)}"></div>
-    <div class="field"><span class="lbl">組別</span><div class="opts" id="e-cat">${Object.entries(CAT).map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${k === m.cat}">${c.name}</button>`).join('')}</div></div>
+    <div class="field"><span class="lbl">組別</span><div class="opts" id="e-cat">${offered().map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${k === m.cat}">${c.name}</button>`).join('')}</div></div>
     <div class="grid2"><div class="field"><label for="e-bib">號碼布</label><input id="e-bib" type="text" inputmode="numeric" maxlength="8" value="${esc(m.bib || '')}"></div>
-    <div class="field"><label for="e-tgt">目標時間</label><input id="e-tgt" type="text" inputmode="numeric" placeholder="4:30" value="${hm(m.target_sec)}"></div></div>
+    <div class="field"><label for="e-tgt">目標時間</label><input id="e-tgt" type="text" inputmode="numeric" placeholder="0:00" value="${hm(m.target_sec)}"><span class="hint">打 430 就是 4:30</span></div></div>
     <button type="button" class="btn primary block lg" id="e-ok">儲存</button>`, () => {
     let cat = m.cat;
+    bindTimeInput($('#e-tgt'), false);
     $('#e-cat').onclick = ev => { const b = ev.target.closest('[data-cat]'); if (!b) return; cat = b.dataset.cat; $('#e-cat').querySelectorAll('[data-cat]').forEach(x => x.setAttribute('aria-pressed', x === b)); };
     $('#e-ok').onclick = async () => {
       const t = $('#e-tgt').value.trim(), s = t ? parseHMS(t) : null;
-      if (t && !s) return toast('目標時間格式像 4:30');
+      if (t && !s) return toast('分鐘不能超過 59');
       if (await update({ nick: $('#e-nick').value.trim(), cat, bib: $('#e-bib').value.trim() || null, target_sec: s }, '已更新')) closeSheet();
     };
   });
@@ -819,15 +870,16 @@ async function loadAdmin() {
   const box = $('#adm'); if (!box) return;
   let d; try { d = await admin('list'); } catch (e) { S.adminCode = null; toast(e.message); return; }
   const cfg = d.team.config || {};
-  const link = new URL(location.origin + location.pathname); if (TEAM !== 'tc2026') link.searchParams.set('t', TEAM);
-  link.searchParams.set('openExternalBrowser', '1'); link.hash = 'k=' + encodeURIComponent(S.code || '');
+  const mk = t => { const u = new URL(location.origin + location.pathname); if (t) u.searchParams.set('t', t); u.searchParams.set('openExternalBrowser', '1'); u.hash = 'k=' + encodeURIComponent(S.code || ''); return u.toString(); };
+  const link = mk(TEAM), pickLink = mk('');
   box.innerHTML = `
-    <div class="sec"><h3>分享給群組</h3><div class="inner"><p class="note" style="padding:0">這個連結已經帶好團體代碼，在 LINE 裡點開會自動用手機瀏覽器開。</p>
-      <div class="row"><input class="grow" type="text" readonly value="${esc(link)}" id="a-link"><button type="button" class="btn dark" id="a-copy">複製</button></div></div></div>
+    <div class="sec"><h3>分享給群組</h3><div class="inner"><p class="note" style="padding:0">連結都帶好團體代碼，在 LINE 裡點開會自動用手機瀏覽器開。</p>
+      <div class="field" style="margin-top:6px"><span class="lbl">賽事選單（大家自己選哪一場）</span><div class="row"><input class="grow" type="text" readonly value="${esc(pickLink)}" id="a-link0"><button type="button" class="btn dark" data-copy="a-link0">複製</button></div></div>
+      <div class="field"><span class="lbl">直接進這一場</span><div class="row"><input class="grow" type="text" readonly value="${esc(link)}" id="a-link"><button type="button" class="btn dark" data-copy="a-link">複製</button></div></div></div></div>
     <div class="sec"><h3>場次設定</h3><div class="inner">
       <div class="field"><label for="a-name">名稱</label><input id="a-name" type="text" value="${esc(d.team.name)}"></div>
       <div class="field"><label for="a-date">比賽日期</label><input id="a-date" type="date" value="${esc(cfg.date || '')}"></div>
-      <div class="grid2">${Object.entries(CAT).map(([k, c]) => `<div class="field" style="margin:6px 0"><label for="a-s-${k}">${c.name}鳴槍</label><input id="a-s-${k}" type="time" value="${esc(cfg.starts?.[k] || '')}"></div>`).join('')}</div>
+      <div class="grid2">${offered().map(([k, c]) => `<div class="field" style="margin:6px 0"><label for="a-s-${k}">${c.name}鳴槍</label><input id="a-s-${k}" type="time" value="${esc(cfg.starts?.[k] || '')}"></div>`).join('')}</div>
       <label class="item" style="padding:12px 0;border:0"><div class="grow"><b>用大會路線對位</b><span>練跑不在賽道上時關掉</span></div><input type="checkbox" class="switch" id="a-route" ${cfg.useRoute !== false ? 'checked' : ''}></label>
       <button type="button" class="btn dark block" id="a-save">儲存設定</button>
       <div class="field" style="margin-top:18px"><label for="a-code2">更換團體代碼</label><div class="row"><input class="grow" id="a-code2" type="text" autocomplete="off" placeholder="至少 4 碼"><button type="button" class="btn ghost" id="a-code-go">更換</button></div><span class="hint">換了之後，舊連結會失效。</span></div>
@@ -837,9 +889,9 @@ async function loadAdmin() {
         <button type="button" class="btn sm ghost" data-pin="${r.id}" data-n="${esc(r.nick)}">重設 PIN</button><button type="button" class="btn sm danger" data-rm="${r.id}" data-n="${esc(r.nick)}">移除</button></div>`).join('') || '<div class="inner">還沒有人</div>'}
       <div class="inner" style="padding-top:10px"><button type="button" class="btn danger block" id="a-clear">清除全部定位紀錄</button></div></div>
     <button type="button" class="admin-link" id="a-exit">離開管理者模式</button>`;
-  $('#a-copy').onclick = async () => { try { await navigator.clipboard.writeText($('#a-link').value); toast('已複製連結'); } catch { $('#a-link').select(); toast('請長按連結複製'); } };
+  box.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => { const i = document.getElementById(b.dataset.copy); try { await navigator.clipboard.writeText(i.value); toast('已複製連結'); } catch { i.select(); toast('請長按連結複製'); } });
   $('#a-save').onclick = async () => {
-    const starts = {}; for (const k of Object.keys(CAT)) { const v = $(`#a-s-${k}`).value; if (v) starts[k] = v.slice(0, 5); }
+    const starts = { ...(cfg.starts || {}) }; for (const [k] of offered()) { const v = $(`#a-s-${k}`).value; if (v) starts[k] = v.slice(0, 5); }
     try { await admin('set_config', { config: { ...cfg, date: $('#a-date').value, starts, useRoute: $('#a-route').checked }, name: $('#a-name').value.trim() }); toast('設定已儲存'); await poll(true); }
     catch (e) { toast(e.message); }
   };

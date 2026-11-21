@@ -6,12 +6,12 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#111214">
-<title>跑團 LIVE｜台中馬 2026</title>
+<title>跑團 LIVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w==" crossorigin="anonymous">
-<link rel="stylesheet" href="ui.css?v=5">
+<link rel="stylesheet" href="ui.css?v=8">
 </head>
 <body>
 
@@ -26,12 +26,13 @@
 <section id="gate" class="hero" hidden>
   <div class="hero-in">
     <div class="logo"><span class="pulse"></span>跑團 <b>LIVE</b></div>
-    <p class="hero-sub" id="gate-sub">2026 麗晨臺中國際馬拉松・12/6（日）</p>
+    <p class="hero-sub" id="gate-sub">&nbsp;</p>
     <form id="gate-form" class="hero-form">
       <label for="gate-code">團體代碼</label>
       <input id="gate-code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go" required>
       <button class="btn primary block lg" type="submit">進入</button>
       <p class="hero-note">代碼在跑團群組裡，輸入一次就會記住。</p>
+      <button type="button" class="btn ghost block" id="gate-switch" style="margin-top:18px;color:#fff;border-color:#ffffff40">換別場賽事</button>
     </form>
   </div>
 </section>
@@ -41,7 +42,7 @@
 
 <div id="app" class="app" hidden>
   <header class="top">
-    <div class="logo sm"><span class="pulse"></span>跑團 <b>LIVE</b></div>
+    <button type="button" class="evbtn" id="btn-event" aria-label="切換賽事"><span class="pulse"></span><span><small>跑團 LIVE</small><b id="ev-name">賽事</b></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button>
     <div class="race-clock" id="race-clock" aria-live="polite"></div>
     <span class="net" id="net" role="status"><i></i><span id="net-text"></span></span>
   </header>
@@ -104,6 +105,6 @@
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg==" crossorigin="anonymous"></script>
-<script type="module" src="app.js?v=5"></script>
+<script type="module" src="app.js?v=8"></script>
 </body>
 </html>

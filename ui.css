@@ -251,3 +251,23 @@ dialog::backdrop{background:#0008}
 .boot p{color:#ffffff90;font-size:14px;margin-top:10px;text-align:center}
 .kmk.odd{display:none}
 .zoom-mid .kmk.odd{display:inline-block}
+
+/* 賽事切換與選單 */
+.evbtn{display:flex;align-items:center;gap:8px;border:0;background:#ffffff14;color:#fff;border-radius:12px;padding:4px 10px 4px 10px;min-inline-size:0;text-align:left}
+.evbtn span{display:flex;flex-direction:column;line-height:1.15;min-inline-size:0}
+.evbtn small{font-size:10px;font-weight:800;letter-spacing:.08em;color:#ffffff99;font-family:var(--num)}
+.evbtn b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-inline-size:38vw}
+.evbtn svg{inline-size:16px;block-size:16px;color:#ffffffa0;flex:0 0 auto}
+.ev{display:flex;align-items:center;gap:14px;inline-size:100%;text-align:left;background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:14px 14px 14px 12px;margin-bottom:10px}
+.ev:active{border-color:var(--ink)}
+.ev-date{flex:0 0 74px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--ink);color:#fff;border-radius:14px;padding:10px 4px;line-height:1.2;text-align:center}
+.ev-date b{font-family:var(--num);font-size:24px;line-height:1}
+.ev-date small{font-size:11px;color:#ffffffb0;margin-top:2px;white-space:nowrap}
+.ev.practice .ev-date{background:#e7e5e0;color:var(--ink)}
+.ev.practice .ev-date small{color:var(--mute)}
+.ev-main{flex:1;min-inline-size:0}
+.ev-main b{display:block;font-size:17px;line-height:1.3}
+.ev-main span{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.ev-main .tag{font-style:normal}
+.tag.last{background:#fde8e8;color:var(--brand)}
+.ev .chev{inline-size:20px;block-size:20px;color:#b6b4ae;flex:0 0 auto}
