@@ -1,8 +1,10 @@
-import { CAT, analyze, routeOf, etaAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav } from './calc.js';
+import { CAT, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav } from './calc.js';
 import { ROUTES } from './routes.js';
 import { SB_URL, SB_KEY } from './config.js';
 
-const TEAM = new URLSearchParams(location.search).get('t') || 'tc2026';
+// ---------- 基本 ----------
+const qs = new URLSearchParams(location.search);
+const TEAM = qs.get('t') || 'tc2026';
 const K = k => `rl_${TEAM}_${k}`;
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(K(k))); } catch { return null; } },
@@ -11,102 +13,267 @@ const store = {
 };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const initial = s => { const a = Array.from(String(s || '?').trim()); const c = a[0] || '?'; if (c.charCodeAt(0) < 128) return c.toUpperCase(); return a.length >= 3 ? a.slice(-2).join('') : a.join(''); };
+const catName = c => CAT[c]?.name || c;
+const catVar = c => ({ full: '--full', half: '--half', '10k': '--k10', '5k': '--k5' }[c]);
+const cvar = c => `var(${catVar(c)})`;
+const hm = s => s ? `${Math.floor(s / 3600)}:${String(Math.round(s % 3600 / 60)).padStart(2, '0')}` : '';
+const ICON = {
+  chev: '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+  run: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="14" cy="4.5" r="2"/><path d="M7 21l3-6 3 2v5M10 15l1-5 4 2 3-1M11 10l-3 1-2 3"/></svg>',
+  cheer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l5 4V6L7 10H4z"/><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18h2"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  me: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>',
+  tap: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11V5a2 2 0 0 1 4 0v6M13 10a2 2 0 0 1 4 0v2M17 11a2 2 0 0 1 4 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-3-5a2 2 0 0 1 3-2l2 2"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+};
 
 const ERR = {
-  bad_code: '團體代碼不對', bib_taken: '這個號碼已經有人加入。如果是你本人，請用下面的「換手機登入」',
-  bad_bib: '號碼布只能是英文或數字，最多 8 碼', bad_nick: '暱稱要 1 到 16 個字', bad_pin: 'PIN 要 4 位數字',
-  no_bib: '找不到這個號碼，請確認是否已加入', locked: 'PIN 錯太多次被鎖住，請找管理者重設',
-  bad_token: '登入已失效，請重新登入', bad_target: '目標時間不合理（15 分鐘到 8 小時之間）',
-  bad_finish: '完賽時間不合理', bad_admin: '管理碼不對', team_full: '人數已滿', bad_cat: '組別不對',
+  bad_code: '團體代碼不對', bib_taken: '這個號碼布已經有人登記了', nick_taken: '這個暱稱已經有人用了，換一個吧',
+  bad_bib: '號碼布只能是英文或數字，最多 8 碼', bad_nick: '暱稱要 1 到 12 個字', bad_pin: 'PIN 要 4 位數字',
+  no_runner: '找不到這位跑者', locked: 'PIN 錯太多次被鎖住了，請跑團管理者幫你重設',
+  bad_token: '登入已失效，請重新登入', bad_target: '目標時間不合理', bad_finish: '完賽時間不合理',
+  bad_admin: '管理碼不對', team_full: '人數已滿', bad_cat: '請選組別', bad_code_len: '代碼至少 4 碼',
 };
 async function rpc(fn, args) {
-  const r = await fetch(SB_URL + fn, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+  let r;
+  try { r = await fetch(SB_URL + fn, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(args) }); }
+  catch { const e = new Error('網路不穩，請稍後再試'); e.code = 'net'; throw e; }
   const j = await r.json().catch(() => null);
-  if (!r.ok) { const e = new Error(ERR[j?.message] || j?.message || `連線錯誤 ${r.status}`); e.code = j?.message; throw e; }
+  if (!r.ok) { const e = new Error(ERR[j?.message] || '伺服器忙碌，請稍後再試'); e.code = j?.message; throw e; }
   return j;
+}
+
+// 群組連結帶代碼：#k=代碼（不會送到伺服器），讀完就從網址拿掉
+{
+  const m = location.hash.match(/k=([^&]+)/);
+  if (m) { store.set('code', decodeURIComponent(m[1]).trim().toLowerCase()); history.replaceState(null, '', location.pathname + location.search); }
+}
+// LINE 內建瀏覽器：建議外開
+if (/\bLine\//i.test(navigator.userAgent)) {
+  $('#line-tip').hidden = false;
+  const u = new URL(location.href); u.searchParams.set('openExternalBrowser', '1');
+  const code = store.get('code'); if (code) u.hash = 'k=' + encodeURIComponent(code);
+  $('#line-open').href = u.toString();
 }
 
 // ---------- 狀態 ----------
 const S = {
-  code: store.get('code'), token: store.get('token'), me: store.get('me'),
-  team: null, runners: [], pts: new Map(), since: null, filter: store.get('filter') || 'all',
-  cheer: 'finish', online: false, lastPoll: 0, tab: 'map', adminCode: null,
+  code: store.get('code'), token: store.get('token'), me: store.get('me'), watcher: store.get('watcher'),
+  team: null, runners: [], pts: new Map(), since: null, online: false, lastPoll: 0,
+  filter: store.get('filter') || 'all', cheer: store.get('cheer') || { type: 'finish' },
+  tab: 'live', sel: null, picking: false, adminCode: null, expanded: false,
 };
 const Q = { list: store.get('queue') || [], sending: false, lastSent: store.get('lastSent') };
 const GEO = { watchId: null, lastT: 0, last: null, acc: null, err: null, wake: null };
 
 // ---------- 小工具 ----------
-let toastTimer;
-function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 3200);
-}
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
 function confirmBox(msg, yes = '確定') {
-  const d = $('#dlg'); $('#dlg-msg').textContent = msg; $('#dlg-yes').textContent = yes;
-  d.showModal();
+  const d = $('#dlg-confirm'); $('#dlg-msg').textContent = msg; $('#dlg-yes').textContent = yes; d.showModal();
   return new Promise(res => {
-    const done = v => { d.close(); $('#dlg-yes').onclick = $('#dlg-no').onclick = null; res(v); };
-    $('#dlg-yes').onclick = () => done(true); $('#dlg-no').onclick = () => done(false);
-    d.oncancel = () => done(false);
+    const done = v => { if (d.open) d.close(); res(v); };
+    $('#dlg-yes').onclick = () => done(true); $('#dlg-no').onclick = () => done(false); d.oncancel = () => done(false);
   });
 }
-const catName = c => CAT[c]?.name || c;
-const hmOf = s => s ? `${Math.floor(s / 3600)}:${String(Math.round(s % 3600 / 60)).padStart(2, '0')}` : '';
+function openSheet(title, html, bind) {
+  const d = $('#dlg-sheet'); $('#sheet-title').textContent = title; $('#sheet-body').innerHTML = html;
+  if (!d.open) d.showModal();
+  bind?.($('#sheet-body'));
+}
+const closeSheet = () => { const d = $('#dlg-sheet'); if (d.open) d.close(); };
+$('#sheet-close').onclick = closeSheet;
+$('#dlg-sheet').addEventListener('click', ev => { if (ev.target === ev.currentTarget) closeSheet(); });
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-eye]'); if (!b) return;
+  const i = document.getElementById(b.dataset.eye); i.type = i.type === 'password' ? 'text' : 'password';
+  b.textContent = i.type === 'password' ? '顯示' : '隱藏';
+});
+const pinField = (id, label, hint, ac = 'new-password') => `<div class="field"><label for="${id}">${label}</label>
+  <div class="row"><input class="grow" id="${id}" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="${ac}" enterkeyhint="done"><button type="button" class="btn ghost" data-eye="${id}">顯示</button></div>
+  ${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
+
+// 比賽階段
+function phase(cat) {
+  const cfg = S.team?.config; if (!cfg) return 'pre';
+  const gun = gunTime(cfg, cat), now = Date.now(), lim = CAT[cat].limit * 1000;
+  if (now < gun - 90 * 60e3) return 'pre';
+  if (now <= gun + lim + 60 * 60e3) return 'race';
+  return 'post';
+}
 
 // ---------- 開場 ----------
 async function boot() {
   if (!S.code) return showGate();
-  try {
-    await poll(true);
-  } catch (e) {
-    if (e.code === 'bad_code') { store.del('code'); S.code = null; return showGate('代碼已更換，請重新輸入'); }
+  try { await poll(true); }
+  catch (e) {
+    if (e.code === 'bad_code') { store.del('code'); S.code = null; return showGate('團體代碼已更換，請重新輸入'); }
     toast('連不上伺服器，稍後會自動重試');
   }
-  showApp();
   if (S.token) {
-    rpc('runlive_me', { p_token: S.token }).then(me => { S.me = me; store.set('me', me); renderMe(); })
-      .catch(e => { if (e.code === 'bad_token') { logoutLocal(); toast('這支手機的登入已失效（可能在別支手機登入過）'); } });
+    rpc('runlive_me', { p_token: S.token }).then(me => { S.me = me; store.set('me', me); renderAll(); })
+      .catch(e => { if (e.code === 'bad_token') { logoutLocal(); toast('這支手機已登出（可能在別支手機登入過）'); } });
   }
+  if (S.me || S.watcher) showApp(); else showOnboard('role');
   if (store.get('sharing') && S.token) startShare(true);
   if (store.get('wake')) setWake(true);
 }
 
 function showGate(msg) {
-  $('#gate').hidden = false; $('#app').hidden = true;
-  if (TEAM !== 'tc2026') $('#gate-sub').textContent = `場次：${TEAM}`;
+  $('#boot').hidden = true;
+  $('#gate').hidden = false; $('#app').hidden = true; $('#onboard').hidden = true;
+  if (TEAM !== 'tc2026') $('#gate-sub').textContent = `測試場次（${TEAM}）`;
   if (msg) toast(msg);
   $('#gate-form').onsubmit = async ev => {
     ev.preventDefault();
     const code = $('#gate-code').value.trim().toLowerCase();
     try {
       const st = await rpc('runlive_state', { p_team: TEAM, p_code: code, p_since: null });
-      S.code = code; store.set('code', code);
-      applyState(st, true);
+      S.code = code; store.set('code', code); applyState(st, true);
       $('#gate').hidden = true;
-      showApp();
-      setTab(S.me ? 'map' : 'me');
+      if (S.me || S.watcher) showApp(); else showOnboard('role');
     } catch (e) { toast(e.message); }
   };
+  setTimeout(() => $('#gate-code').focus(), 50);
 }
 
+// ---------- 新手流程 ----------
+const J = { cat: null, nick: '', bib: '', target: null, pick: null };
+const TARGETS = {
+  full: ['3:30', '4:00', '4:30', '5:00', '5:30', '6:00'], half: ['1:45', '2:00', '2:15', '2:30', '2:45', '3:00'],
+  '10k': ['0:50', '1:00', '1:10', '1:20', '1:30', '1:45'], '5k': ['0:25', '0:30', '0:35', '0:40', '0:50', '1:00'],
+};
+function showOnboard(step) {
+  $('#boot').hidden = true;
+  $('#gate').hidden = true; $('#app').hidden = true;
+  const el = $('#onboard'); el.hidden = false;
+  const top = (back, n) => `<div class="ob-top">${back ? `<button type="button" class="ob-back" data-go="${back}">← 上一步</button>` : '<div class="logo sm"><span class="pulse"></span>跑團 <b>LIVE</b></div>'}
+    ${n ? `<div class="ob-steps"><i class="${n >= 1 ? 'on' : ''}"></i><i class="${n >= 2 ? 'on' : ''}"></i></div>` : ''}</div>`;
+  let h = '';
+  if (step === 'role') {
+    h = `${top()}<h1>${esc(S.team?.name || '跑團 LIVE')}</h1><p class="lead">比賽當天看大家跑到哪、幾點會到。</p>
+      <button type="button" class="role main" data-go="join1"><span class="ic">${ICON.run}</span><span><b>我要跑</b><span>加入地圖，比賽時分享位置</span></span></button>
+      <button type="button" class="role" data-go="watch"><span class="ic">${ICON.cheer}</span><span><b>我是加油團</b><span>不用加入，直接看</span></span></button>
+      <p style="text-align:center;margin-top:18px;color:var(--mute)">已經加入過了？<button type="button" class="linkbtn" data-go="login">換手機登入</button></p>`;
+  } else if (step === 'join1') {
+    h = `${top('role', 1)}<h1>加入跑團地圖</h1><p class="lead">地圖和名單上會顯示你的暱稱。</p>
+      <div class="field"><span class="lbl">組別</span><div class="opts" id="o-cat">${Object.entries(CAT).map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${J.cat === k}">${c.name}<small>${(c.len / 1000).toFixed(k === 'half' ? 1 : 0)} km</small></button>`).join('')}</div></div>
+      <div class="field"><label for="o-nick">暱稱</label><input id="o-nick" type="text" maxlength="12" autocomplete="nickname" enterkeyhint="next" value="${esc(J.nick)}"></div>
+      <div class="field"><label for="o-bib">號碼布（選填）</label><input id="o-bib" type="text" inputmode="numeric" maxlength="8" enterkeyhint="done" value="${esc(J.bib)}"><span class="hint">大會物資約賽前一週寄到，收到再補也可以。</span></div>
+      <button type="button" class="btn primary block lg" id="o-next">下一步</button>`;
+  } else if (step === 'join2') {
+    const list = TARGETS[J.cat] || [];
+    h = `${top('join1', 2)}<h1>目標時間和 PIN</h1><p class="lead">還沒有定位時，會用目標配速推算你的位置。</p>
+      <div class="field"><span class="lbl">目標完賽時間</span><div class="opts" id="o-tgt">${list.map(t => `<button type="button" class="opt" data-t="${t}" aria-pressed="${J.pick === t}"><span class="num">${t}</span></button>`).join('')}
+</div><div class="opts" style="grid-template-columns:1fr 1fr;margin-top:8px"><button type="button" class="opt" data-t="none" aria-pressed="${J.pick === 'none'}">還不確定</button><button type="button" class="opt" data-t="custom" aria-pressed="${J.pick === 'custom'}">自己填</button></div>
+        <input id="o-tgt-c" type="text" inputmode="numeric" placeholder="例如 4:15" ${J.pick === 'custom' ? '' : 'hidden'}></div>
+      ${pinField('o-pin', '設一組 4 位數 PIN', '換手機時，點你的名字再輸入 PIN 就能登入。')}
+      <button type="button" class="btn primary block lg" id="o-done">完成加入</button>`;
+  } else if (step === 'done') {
+    h = `<div class="ob-top"></div><div class="done-hero"><div class="big">🎉</div><h1 style="margin-top:12px">${esc(S.me?.nick)}，加入完成！</h1></div>
+      <ol class="steps-list"><li>比賽當天打開這個網頁</li><li>按底部的「出發」，開始分享位置</li><li>跑完填正式成績，做一張完賽圖卡</li></ol>
+      <p class="note">建議現在先試一次定位，手機會問你要不要允許使用位置，請按「允許」。</p>
+      <button type="button" class="btn primary block lg" id="o-test">試一下定位</button>
+      <button type="button" class="btn ghost block" style="margin-top:10px" data-go="app">先看地圖</button>`;
+  } else if (step === 'login') {
+    const rs = [...S.runners].sort((a, b) => a.nick.localeCompare(b.nick, 'zh-Hant'));
+    h = `${top('role')}<h1>點你的名字</h1><p class="lead">接著輸入你加入時設的 PIN。</p>
+      <input id="o-q" type="search" placeholder="搜尋暱稱或號碼" aria-label="搜尋">
+      <div class="namegrid" id="o-names">${rs.map(r => `<button type="button" data-rid="${r.id}" data-q="${esc((r.nick + ' ' + (r.bib || '')).toLowerCase())}">${esc(r.nick)}<small>${catName(r.cat)}${r.bib ? '・' + esc(r.bib) : ''}</small></button>`).join('') || '<p class="note">還沒有人加入</p>'}</div>`;
+  } else if (step.startsWith('pin:')) {
+    const r = S.runners.find(x => x.id === step.slice(4));
+    h = `${top('login')}<h1>嗨，${esc(r?.nick)}</h1><p class="lead">輸入你的 PIN。登入後，舊手機會自動登出。</p>
+      ${pinField('o-lpin', 'PIN', '忘記 PIN 的話，請跑團管理者幫你重設。', 'current-password')}
+      <button type="button" class="btn primary block lg" id="o-login" data-rid="${esc(r?.id)}">登入</button>`;
+  }
+  el.innerHTML = `<div class="ob">${h}</div>`;
+  bindOnboard(step);
+}
+function bindOnboard(step) {
+  const el = $('#onboard');
+  el.onclick = async ev => {
+    const go = ev.target.closest('[data-go]');
+    if (go) {
+      const g = go.dataset.go;
+      if (g === 'watch') { S.watcher = true; store.set('watcher', true); return showApp(); }
+      if (g === 'app' || (g === 'role' && S.watcher)) return showApp();
+      if (step === 'join1') saveJ1();
+      return showOnboard(g);
+    }
+    const c = ev.target.closest('[data-cat]');
+    if (c) { J.cat = c.dataset.cat; J.pick = null; el.querySelectorAll('[data-cat]').forEach(b => b.setAttribute('aria-pressed', b === c)); }
+    const t = ev.target.closest('[data-t]');
+    if (t) { J.pick = t.dataset.t; el.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#o-tgt-c').hidden = J.pick !== 'custom'; if (J.pick === 'custom') $('#o-tgt-c').focus(); }
+    const n = ev.target.closest('#o-names [data-rid]');
+    if (n) showOnboard('pin:' + n.dataset.rid);
+  };
+  const saveJ1 = () => { J.nick = $('#o-nick')?.value.trim() ?? J.nick; J.bib = $('#o-bib')?.value.trim() ?? J.bib; };
+  if (step === 'join1') {
+    $('#o-next').onclick = () => {
+      saveJ1();
+      if (!J.cat) return toast('先選組別');
+      if (!J.nick) { $('#o-nick').focus(); return toast('填一個暱稱'); }
+      if (S.runners.some(r => r.nick.toLowerCase() === J.nick.toLowerCase())) return toast(ERR.nick_taken + '。如果是你本人，請回上一步按「換手機登入」');
+      if (J.bib && !/^[A-Za-z0-9-]{1,8}$/.test(J.bib)) return toast(ERR.bad_bib);
+      showOnboard('join2');
+    };
+  }
+  if (step === 'join2') {
+    $('#o-done').onclick = async () => {
+      let target = null;
+      if (J.pick === 'custom') { target = parseHMS($('#o-tgt-c').value); if (!target) return toast('目標時間格式像 4:15'); }
+      else if (J.pick && J.pick !== 'none') target = parseHMS(J.pick);
+      const pin = $('#o-pin').value.trim();
+      if (!/^\d{4}$/.test(pin)) { $('#o-pin').focus(); return toast(ERR.bad_pin); }
+      $('#o-done').disabled = true;
+      try {
+        const res = await rpc('runlive_join', { p_team: TEAM, p_code: S.code, p_bib: J.bib || null, p_nick: J.nick, p_cat: J.cat, p_target_sec: target, p_pin: pin });
+        setLogin(res); await poll(true).catch(() => { }); showOnboard('done');
+      } catch (e) { toast(e.message); $('#o-done').disabled = false; }
+    };
+  }
+  if (step === 'done') $('#o-test').onclick = () => { showApp(); startShare(); };
+  if (step === 'login') {
+    $('#o-q').oninput = ev => { const q = ev.target.value.trim().toLowerCase(); $('#o-names').querySelectorAll('[data-q]').forEach(b => b.hidden = q && !b.dataset.q.includes(q)); };
+  }
+  if (step.startsWith('pin:')) {
+    setTimeout(() => $('#o-lpin').focus(), 50);
+    $('#o-login').onclick = async () => {
+      try {
+        const res = await rpc('runlive_login_id', { p_team: TEAM, p_code: S.code, p_id: $('#o-login').dataset.rid, p_pin: $('#o-lpin').value.trim() });
+        if (res.error) return toast(res.left > 0 ? `PIN 不對，還可以試 ${res.left} 次` : ERR.locked);
+        setLogin(res); toast(`歡迎回來，${res.nick}`); await poll(true).catch(() => { }); showApp();
+      } catch (e) { toast(e.message); }
+    };
+  }
+}
+
+function setLogin(res) {
+  S.token = res.token; store.set('token', res.token);
+  const { token, ...me } = res; S.me = me; store.set('me', me); S.watcher = false; store.del('watcher');
+}
+function logoutLocal() {
+  stopShare(); S.token = null; S.me = null; store.del('token'); store.del('me'); store.del('arrived'); Q.list = []; store.set('queue', []);
+}
+
+// ---------- 主畫面 ----------
 let mapReady = false;
 function showApp() {
-  $('#gate').hidden = true; $('#app').hidden = false;
+  $('#boot').hidden = true;
+  $('#gate').hidden = true; $('#onboard').hidden = true; $('#app').hidden = false;
   if (!mapReady) { initMap(); mapReady = true; }
-  renderFilters(); renderCheerOptions(); renderAll();
-  setTab(S.tab);
-  if (!S.me && !store.get('watcher')) setTab('me');
+  setTab(S.tab); renderAll(); setTimeout(fitAll, 200);
 }
-
-// ---------- 分頁 ----------
-document.querySelectorAll('nav.tabs [data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$('#tab-card').href = 'card.html' + (TEAM !== 'tc2026' ? `?t=${encodeURIComponent(TEAM)}` : '');
 function setTab(tab) {
   S.tab = tab;
-  for (const v of ['map', 'list', 'me']) $(`#view-${v}`).hidden = v !== tab;
-  document.querySelectorAll('nav.tabs [data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
-  if (tab === 'map' && map) setTimeout(() => map.invalidateSize(), 50);
-  if (tab === 'me') renderMe();
-  if (tab === 'list') renderList();
+  $('#view-live').hidden = tab !== 'live'; $('#view-me').hidden = tab !== 'me';
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  if (tab === 'live' && map) setTimeout(() => map.invalidateSize(), 30);
+  renderAll();
 }
 
 // ---------- 同步 ----------
@@ -121,19 +288,21 @@ function applyState(st, full) {
   }
   const ids = new Set(S.runners.map(r => r.id));
   for (const id of S.pts.keys()) if (!ids.has(id)) S.pts.delete(id);
-  if (S.me) { const m = S.runners.find(r => r.id === S.me.id); if (m) { S.me = { ...S.me, ...m }; store.set('me', S.me); } }
-  $('#team-name').textContent = S.team?.name || '跑團 Live';
+  if (S.me) {
+    const m = S.runners.find(r => r.id === S.me.id);
+    if (m) { S.me = { ...S.me, ...m }; store.set('me', S.me); }
+  }
 }
 async function poll(full = false) {
   const st = await rpc('runlive_state', { p_team: TEAM, p_code: S.code, p_since: full ? null : S.since });
-  applyState(st, full);
-  renderAll();
+  applyState(st, full); renderAll();
 }
 setInterval(() => {
   if (document.visibilityState !== 'visible' || !S.code || $('#app').hidden) return;
-  poll(Date.now() - S.lastPoll > 10 * 60e3).catch(() => { S.online = false; renderNet(); });
+  poll(Date.now() - S.lastPoll > 10 * 60e3).catch(() => { S.online = false; renderTop(); });
 }, 20000);
 setInterval(() => { if (!$('#app').hidden) renderAll(); }, 30000);
+setInterval(() => { if (!$('#app').hidden) renderTop(); }, 1000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   if (store.get('wake')) setWake(true);
@@ -141,18 +310,10 @@ document.addEventListener('visibilitychange', () => {
 });
 addEventListener('online', () => { flush(); poll().catch(() => { }); });
 
-function renderNet() {
-  const d = $('#net-dot'), t = $('#net-text');
-  if (!navigator.onLine) { d.className = 'dot off'; t.textContent = '離線'; return; }
-  d.className = 'dot' + (S.online ? ' on' : ' off');
-  t.textContent = S.online ? `更新 ${fmtClock(S.lastPoll)}` : '連線中斷';
-}
-
 // ---------- 分析 ----------
 let AN = new Map();
 function analyzeAll() {
-  const now = Date.now();
-  AN = new Map();
+  const now = Date.now(); AN = new Map();
   for (const r of S.runners) {
     let pts = S.pts.get(r.id) || [];
     if (S.me && r.id === S.me.id && Q.list.length) {
@@ -163,200 +324,346 @@ function analyzeAll() {
   }
 }
 function renderAll() {
-  analyzeAll(); renderNet(); renderClock();
-  if (mapReady) renderMap();
-  if (S.tab === 'list') renderList();
-  if (S.tab === 'me') renderShareStatus();
+  if ($('#app').hidden) return;
+  analyzeAll(); renderTop(); renderCTA();
+  if (S.tab === 'live') { renderFilter(); renderMap(); renderList(); renderSel(); }
+  if (S.tab === 'me') renderMe();
 }
-function renderClock() {
+function renderTop() {
   const cfg = S.team?.config; if (!cfg) return;
-  const gun = gunTime(cfg, 'full'), now = Date.now();
-  const line = now < gun - 12 * 3600e3 ? `比賽日 ${cfg.date}` : now < gun ? `全馬 ${fmtClock(gun)} 起跑` : `全馬已跑 ${fmtHMS((now - gun) / 1000)}`;
-  $('#clock-line').textContent = line;
+  const gun = gunTime(cfg, 'full'), now = Date.now(), el = $('#race-clock');
+  const endT = gunTime(cfg, 'full') + CAT.full.limit * 1000;
+  let h;
+  if (now < gun) {
+    const s = (gun - now) / 1000, d = Math.floor(s / 86400);
+    h = d >= 1 ? `<small>距離起跑</small><b>${d} 天 ${Math.floor(s % 86400 / 3600)} 小時</b>` : `<small>距離起跑</small><b>${fmtHMS(s)}</b>`;
+  } else if (now < endT + 30 * 60e3) h = `<small>全馬鳴槍後</small><b>${fmtHMS((now - gun) / 1000)}</b>`;
+  else h = `<small>${esc(cfg.date)}</small><b>比賽結束</b>`;
+  if (el.innerHTML !== h) el.innerHTML = h;
+  const n = $('#net'), on = navigator.onLine && S.online;
+  n.className = 'net ' + (on ? 'on' : 'off');
+  $('#net-text').textContent = on ? fmtClock(S.lastPoll) : '離線';
+}
+
+// ---------- 底部行動列 ----------
+function renderCTA() {
+  const el = $('#cta');
+  if (!S.me) { el.hidden = true; return; }
+  const a = AN.get(S.me.id), ph = phase(S.me.cat), sharing = GEO.watchId != null;
+  let h = '';
+  if (a?.status === 'finished') {
+    h = `<span style="font-size:24px">🏁</span><div class="grow"><b>完賽 ${fmtHMS(a.finishSec)}${a.official ? '' : '（GPS）'}</b>${a.official ? '做一張完賽圖卡吧' : '記得改成大會正式成績'}</div>
+      ${a.official ? `<a class="btn primary" href="${$('#tab-card').getAttribute('href')}">做圖卡</a>` : '<button type="button" class="btn primary" data-act="finish">填成績</button>'}`;
+  } else if (store.get('arrived') && ph !== 'pre') {
+    h = `<span style="font-size:24px">🏁</span><div class="grow"><b>辛苦了！</b>大會成績公告後回來填</div><button type="button" class="btn primary" data-act="finish">填成績</button>`;
+  } else if (sharing) {
+    h = `<span class="live-ind"></span><div class="grow"><b>正在分享位置</b>${Q.lastSent ? `${fmtClock(Q.lastSent)} 已上傳` : '等待 GPS…'}${Q.list.length ? `・待傳 ${Q.list.length}` : ''}</div>
+      ${ph === 'race' ? '<button type="button" class="btn dark" data-act="arrive">到終點了</button>' : '<button type="button" class="btn ghost" data-act="stop">停止</button>'}`;
+  } else if (ph === 'race') {
+    h = `<div class="grow"><b>比賽中請保持分享位置</b>鎖螢幕會暫停，打開這頁就會補上</div><button type="button" class="btn primary lg" data-act="go">出發</button>`;
+  }
+  el.hidden = !h; if (h && el.innerHTML !== h) el.innerHTML = h;
+}
+$('#cta').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'go') goStart();
+  if (act === 'stop') stopShare();
+  if (act === 'arrive') arrive();
+  if (act === 'finish') openFinish();
+});
+async function arrive() {
+  const a = AN.get(S.me.id), left = a ? (a.len - (a.dNow || 0)) / 1000 : 0;
+  if (left > 2 && !await confirmBox(`你目前大約在 ${((a.dNow || 0) / 1000).toFixed(1)}K，確定到終點了嗎？按下去會停止分享位置。`, '到終點了')) return;
+  stopShare(); store.set('arrived', Date.now()); openFinish(true); renderAll();
+}
+async function goStart() {
+  store.del('arrived');
+  startShare();
+  const gun = gunTime(S.team?.config, S.me.cat), now = Date.now();
+  if (now >= gun && now - gun < 75 * 60e3 && !S.me.start_at) {
+    await update({ start_at: new Date().toISOString() }, `出發！已記錄你過起跑線的時間 ${fmtClock(now)}`);
+  } else toast('出發！開始分享位置');
 }
 
 // ---------- 篩選 ----------
-function renderFilters() {
+function renderFilter() {
   const cats = ['all', ...Object.keys(CAT).filter(c => S.runners.some(r => r.cat === c))];
   if (!cats.includes(S.filter)) S.filter = 'all';
-  const html = cats.map(c => `<button type="button" class="chip" data-f="${c}" aria-pressed="${S.filter === c}">${c === 'all' ? '全部' : catName(c)}</button>`).join('');
-  document.querySelectorAll('[data-filter]').forEach(el => el.innerHTML = html);
+  const h = cats.length > 2 ? cats.map(c => `<button type="button" data-f="${c}" aria-pressed="${S.filter === c}">${c === 'all' ? '全部' : catName(c)}</button>`).join('') : '';
+  const el = $('#filter'); el.hidden = !h; if (el.innerHTML !== h) el.innerHTML = h;
 }
-document.addEventListener('click', ev => {
+$('#filter').addEventListener('click', ev => {
   const b = ev.target.closest('[data-f]'); if (!b) return;
-  S.filter = b.dataset.f; store.set('filter', S.filter);
-  renderFilters(); renderAll(); if (S.tab === 'list') renderList(); fitAll();
+  S.filter = b.dataset.f; store.set('filter', S.filter); renderAll(); fitAll();
 });
 const shown = r => S.filter === 'all' || r.cat === S.filter;
 
 // ---------- 地圖 ----------
-let map, routeLayers = {}, markers = new Map(), myFixMarker;
+let map, routeLayers = {}, markers = new Map(), startMarker, cheerMarker;
 function initMap() {
   map = L.map('map', { zoomControl: false, attributionControl: true }).setView([24.205, 120.665], 12);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
+  map.attributionControl.setPrefix(false);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   for (const [cat, r] of Object.entries(ROUTES)) {
-    const g = L.layerGroup();
-    L.polyline(r.pts, { color: CAT[cat].color, weight: 5, opacity: .45 }).addTo(g);
+    const g = L.layerGroup(), col = getComputedStyle(document.documentElement).getPropertyValue(catVar(cat)).trim();
+    L.polyline(r.pts, { color: '#fff', weight: 8, opacity: .9, interactive: false }).addTo(g);
+    L.polyline(r.pts, { color: col, weight: 4, opacity: .85, interactive: false }).addTo(g);
     const rt = routeOf(cat);
     for (let km = 5; km * 1000 < r.len; km += 5) {
       const i = rt.cum.findIndex(d => d >= km * 1000);
-      L.marker(r.pts[i], { icon: L.divIcon({ className: '', html: `<span class="km" style="color:${CAT[cat].color}">${km}K</span>`, iconSize: null }), interactive: false }).addTo(g);
+      L.marker(r.pts[i], { icon: L.divIcon({ className: '', html: `<span class="kmk${km % 10 ? ' odd' : ''}" style="--c:${col};background:${col}">${km}K</span>`, iconSize: null }), interactive: false, keyboard: false }).addTo(g);
     }
     routeLayers[cat] = g;
   }
-  L.marker(ROUTES.full.pts[0], { icon: L.divIcon({ className: '', html: '<span class="sf">起終點</span>', iconSize: null }), interactive: false, zIndexOffset: -100 }).addTo(map);
+  startMarker = L.marker(ROUTES.full.pts[0], { icon: L.divIcon({ className: '', html: '<span class="sf">起終點</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: -50 }).addTo(map);
+  const zoomCls = () => { $('#map').classList.toggle('zoom-hi', map.getZoom() >= 15); $('#map').classList.toggle('zoom-mid', map.getZoom() >= 13); };
+  map.on('zoomend', zoomCls); zoomCls();
+  map.on('click', onMapClick);
   $('#btn-fit').onclick = fitAll;
-  $('#btn-me').onclick = () => {
+  $('#btn-locate').onclick = () => {
     const a = S.me && AN.get(S.me.id);
     const ll = GEO.last ? [GEO.last.la, GEO.last.lo] : a?.pos;
-    if (ll) map.setView(ll, 15); else toast(S.me ? '還沒有你的定位，請到「我」開始分享' : '你還沒加入跑者');
+    if (ll) map.setView(ll, 15);
+    else if (S.cheer.type === 'point') map.setView([S.cheer.la, S.cheer.lo], 15);
+    else toast(S.me ? '還沒有你的位置，按底部「出發」或到「我」打開分享' : '加油團可以在「看誰幾點到」設定自己的位置');
   };
-  setTimeout(fitAll, 300);
+  $('#btn-expand').onclick = () => {
+    S.expanded = !S.expanded; $('#view-live').classList.toggle('expanded', S.expanded);
+    $('#btn-expand').setAttribute('aria-pressed', S.expanded); $('#btn-expand').setAttribute('aria-label', S.expanded ? '縮小地圖' : '放大地圖');
+    setTimeout(() => map.invalidateSize(), 280);
+  };
 }
 function fitAll() {
   if (!map) return;
   const ll = [];
-  for (const r of S.runners) { if (!shown(r)) continue; const a = AN.get(r.id); if (a?.pos) ll.push(a.pos); }
-  if (S.filter !== 'all' && ROUTES[S.filter] && !ll.length) ll.push(...ROUTES[S.filter].pts);
-  if (ll.length >= 2) map.fitBounds(L.latLngBounds(ll).pad(0.2), { maxZoom: 16 });
-  else if (ll.length === 1) map.setView(ll[0], 15);
-  else map.fitBounds(L.latLngBounds(ROUTES.full.pts).pad(0.05));
+  for (const r of S.runners) { if (!shown(r)) continue; const a = AN.get(r.id); if (a?.pos && a.status !== 'waiting') ll.push(a.pos); }
+  if (S.cheer.type === 'point') ll.push([S.cheer.la, S.cheer.lo]);
+  const opt = { paddingTopLeft: [24, 64], paddingBottomRight: [64, 30], maxZoom: 15 };
+  if (ll.length >= 2) map.fitBounds(L.latLngBounds(ll), opt);
+  else if (ll.length === 1) map.setView(ll[0], 14);
+  else { const c = S.filter !== 'all' && ROUTES[S.filter] ? S.filter : 'full'; map.fitBounds(L.latLngBounds((ROUTES[c] || ROUTES.full).pts), opt); }
 }
 function renderMap() {
   const useRoute = S.team?.config?.useRoute !== false;
   for (const [cat, g] of Object.entries(routeLayers)) {
-    const on = useRoute && (S.filter === 'all' ? S.runners.some(r => r.cat === cat) || cat === 'full' : S.filter === cat);
+    const on = useRoute && (S.filter === 'all' ? (S.runners.some(r => r.cat === cat) || cat === 'full') : S.filter === cat);
     if (on && !map.hasLayer(g)) g.addTo(map); else if (!on && map.hasLayer(g)) g.remove();
   }
+  const waiting = S.runners.filter(r => shown(r) && AN.get(r.id)?.status === 'waiting').length;
+  const sfh = `<span class="sf">${ICON.flag.replace('<svg', '<svg width="14" height="14"')}起終點${waiting ? `・${waiting} 人待起跑` : ''}</span>`;
+  if (startMarker._h !== sfh) { startMarker.setIcon(L.divIcon({ className: '', html: sfh, iconSize: null })); startMarker._h = sfh; }
   const keep = new Set();
   for (const r of S.runners) {
     const a = AN.get(r.id);
-    if (!a?.pos || !shown(r)) continue;
+    if (!a?.pos || !shown(r) || a.status === 'waiting') continue;
     keep.add(r.id);
     const isMe = S.me && r.id === S.me.id;
-    const cls = ['pin', a.estimated && a.status !== 'finished' ? 'est' : '', isMe ? 'me' : '', a.status === 'finished' ? 'done' : ''].join(' ');
-    const html = `<div class="${cls}" style="--c:${CAT[r.cat].color}"><b>${esc(r.nick)}</b><i></i></div>`;
+    const cls = ['pin', a.estimated && a.status !== 'finished' ? 'est' : '', isMe ? 'me' : '', a.status === 'finished' ? 'done' : '', S.sel === r.id ? 'sel' : ''].join(' ');
+    const html = `<div class="${cls}" style="--c:${cvar(r.cat)}"><span class="dot">${a.status === 'finished' ? '🏁' : esc(initial(r.nick))}</span><span class="nm">${esc(r.nick)}</span></div>`;
     let m = markers.get(r.id);
     if (!m) {
-      m = L.marker(a.pos, { icon: L.divIcon({ className: '', html, iconSize: null }), zIndexOffset: isMe ? 1000 : 0 }).addTo(map);
-      m.bindPopup('', { maxWidth: 260 });
-      m.on('popupopen', () => m.setPopupContent(popupHtml(r.id)));
+      m = L.marker(a.pos, { icon: L.divIcon({ className: '', html, iconSize: null }), zIndexOffset: isMe ? 1000 : 0, title: r.nick }).addTo(map);
+      m.on('click', () => selectRunner(r.id, false));
       markers.set(r.id, m);
-    } else {
-      m.setLatLng(a.pos);
-      if (m._html !== html) m.setIcon(L.divIcon({ className: '', html, iconSize: null }));
-      if (m.isPopupOpen()) m.setPopupContent(popupHtml(r.id));
-    }
-    m._html = html;
+    } else { m.setLatLng(a.pos); if (m._h !== html) m.setIcon(L.divIcon({ className: '', html, iconSize: null })); }
+    m._h = html; m.setZIndexOffset(S.sel === r.id ? 2000 : isMe ? 1000 : 0);
   }
   for (const [id, m] of markers) if (!keep.has(id)) { m.remove(); markers.delete(id); }
+  // 加油點
+  if (S.cheer.type === 'point') {
+    const ll = [S.cheer.la, S.cheer.lo];
+    if (!cheerMarker) cheerMarker = L.marker(ll, { icon: L.divIcon({ className: '', html: `<span class="cheer-pin">${ICON.pin}</span>`, iconSize: null }), interactive: false, zIndexOffset: 500 }).addTo(map);
+    else cheerMarker.setLatLng(ll);
+  } else if (cheerMarker) { cheerMarker.remove(); cheerMarker = null; }
+}
+function selectRunner(id, fromList) {
+  S.sel = S.sel === id && !fromList ? null : id;
+  const a = AN.get(id);
+  if (S.sel && fromList) {
+    if (a?.pos && a.status !== 'waiting') map.setView(a.pos, Math.max(map.getZoom(), 14));
+    else toast(a?.status === 'waiting' ? '還沒起跑' : '這位跑者還沒有位置');
+  }
+  renderMap(); renderSel(); renderList();
+  if (S.sel && !fromList) document.querySelector(`.rc[data-rid="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function renderSel() {
+  const el = $('#sel-card'), r = S.runners.find(x => x.id === S.sel), a = r && AN.get(r.id);
+  if (!r || !a) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `<button type="button" class="x" aria-label="關閉" id="sel-x">✕</button>
+    <div style="display:flex;gap:12px;align-items:center">${avatar(r, a)}<div style="min-width:0"><b style="font-size:17px">${esc(r.nick)}</b> <span class="tag">${catName(r.cat)}</span>${r.bib ? ` <span class="tag">#${esc(r.bib)}</span>` : ''}
+    <div style="font-size:13px;color:var(--mute)">${statusText(a)}</div></div></div>
+    <div class="grid2" style="margin-top:10px;grid-template-columns:repeat(3,1fr);text-align:center">
+      <div><div class="num" style="font-size:24px;font-weight:700">${a.status === 'finished' ? fmtHMS(a.finishSec) : (a.dNow / 1000).toFixed(1)}</div><small style="color:var(--mute)">${a.status === 'finished' ? '完賽' : 'km'}</small></div>
+      <div><div class="num" style="font-size:24px;font-weight:700">${fmtPace(a.pace)}</div><small style="color:var(--mute)">配速 /km</small></div>
+      <div><div class="num" style="font-size:24px;font-weight:700">${a.status === 'finished' ? fmtClock(a.finishAt) : fmtClock(a.etaFinish)}</div><small style="color:var(--mute)">${a.status === 'finished' ? '抵達' : '預估完賽'}</small></div>
+    </div>`;
+  $('#sel-x').onclick = () => { S.sel = null; renderMap(); renderSel(); renderList(); };
+}
+function avatar(r, a) {
+  const cls = a?.status === 'waiting' ? 'wait' : a?.estimated && a.status !== 'finished' ? 'est' : '';
+  const live = a && a.status === 'running' && !a.estimated;
+  return `<span class="av ${cls}" style="--c:${cvar(r.cat)}">${a?.status === 'finished' ? '🏁' : esc(initial(r.nick))}${live ? '<i class="live" aria-label="即時定位中"></i>' : ''}</span>`;
 }
 function statusText(a) {
   switch (a.status) {
-    case 'waiting': return '還沒起跑';
-    case 'nofix': return '沒有定位，依目標配速推算';
-    case 'stale': return `訊號 ${fmtAgo(a.age)}，位置為推算`;
-    case 'finished': return a.official ? `完賽 ${fmtHMS(a.finishSec)}` : `抵達終點（GPS 約 ${fmtHMS(a.finishSec)}）`;
-    default: return a.estimated ? `跑步中（${fmtAgo(a.age)}定位，現為推算）` : '跑步中';
+    case 'waiting': return `還沒起跑・${fmtClock(a.start)} 出發`;
+    case 'nofix': return '沒開定位・用目標配速推算';
+    case 'stale': return `${fmtAgo(a.age).replace('前', '')}沒更新・推算中`;
+    case 'finished': return a.official ? '大會正式成績' : 'GPS 判定抵達，等本人填正式成績';
+    default: return a.estimated ? `${fmtAgo(a.age)}定位・推算中` : `即時・${fmtAgo(a.age)}`;
   }
 }
-function popupHtml(id) {
-  const r = S.runners.find(x => x.id === id), a = AN.get(id);
-  if (!r || !a) return '';
-  const cheer = S.cheer === 'finish' ? null : cheerKm(r.cat), e = cheer != null && a.status !== 'finished' ? etaAt(a, cheer) : null;
-  return `<div class="pop"><b>${esc(r.nick)}</b> <span style="color:#6b7280">#${esc(r.bib)}・${catName(r.cat)}</span>
-  <div class="g">
-    <span>狀態</span><span>${statusText(a)}</span>
-    <span>距離</span><span>${(a.dNow / 1000).toFixed(1)} / ${(a.len / 1000).toFixed(1)} km</span>
-    <span>配速</span><span>${fmtPace(a.pace)} /km</span>
-    ${a.status !== 'finished' ? `<span>預估完賽</span><span>${fmtClock(a.etaFinish)}（${fmtHMS((a.etaFinish - a.start) / 1000)}）</span>` : ''}
-    ${e ? `<span>${cheerLabel()}</span><span>${e.passed ? '已經過' : fmtClock(e.t)}</span>` : ''}
-    <span>最後定位</span><span>${fmtAgo(a.age)}</span>
-  </div></div>`;
+
+// ---------- 加油點 ----------
+function cheerTarget(r, a) {
+  // 回傳 {t, label, passed} 或 null
+  const c = S.cheer;
+  if (a.status === 'finished') return null;
+  if (c.type === 'km') {
+    if (c.km * 1000 > a.len) return null;
+    const e = etaAt(a, c.km); return { ...e, label: `到 ${c.km}K` };
+  }
+  if (c.type === 'point') {
+    const ds = c.passes?.[r.cat];
+    if (!ds?.length) return null;
+    const idx = ds.findIndex(d => d > (a.dNow ?? 0));
+    if (idx < 0) return { passed: true, label: '經過加油點' };
+    const e = etaAt(a, ds[idx] / 1000);
+    return { ...e, label: ds.length > 1 ? `第 ${idx + 1} 次經過` : '經過加油點', more: ds.slice(idx + 1).map(d => fmtClock(etaAt(a, d / 1000).t)) };
+  }
+  return null;
 }
+function cheerLabel() {
+  const c = S.cheer;
+  if (c.type === 'km') return `${c.km} K`;
+  if (c.type === 'point') return c.short || '我設定的位置';
+  return '終點';
+}
+$('#btn-cheer').onclick = openCheer;
+function openCheer() {
+  const kms = [5, 10, 15, 20, 21.1, 25, 30, 35, 40, 41];
+  openSheet('看誰幾點到', `
+    <button type="button" class="choice" data-c="me">${ICON.me}<span><b>用我現在的位置</b><span>站在路邊加油時最好用</span></span></button>
+    <button type="button" class="choice" data-c="tap">${ICON.tap}<span><b>在地圖上點一下</b><span>先選好要去哪裡加油</span></span></button>
+    <button type="button" class="choice" data-c="finish" aria-pressed="${S.cheer.type === 'finish'}">${ICON.flag}<span><b>終點</b><span>看每個人預估幾點完賽</span></span></button>
+    <div class="field" style="margin-bottom:4px"><span class="lbl">或選公里數</span></div>
+    <div class="kms">${kms.map(k => `<button type="button" data-km="${k}" aria-pressed="${S.cheer.type === 'km' && S.cheer.km === k}">${k}</button>`).join('')}</div>`, body => {
+    body.onclick = ev => {
+      const b = ev.target.closest('[data-c],[data-km]'); if (!b) return;
+      if (b.dataset.km) { setCheer({ type: 'km', km: +b.dataset.km }); closeSheet(); return; }
+      const c = b.dataset.c;
+      if (c === 'finish') { setCheer({ type: 'finish' }); closeSheet(); }
+      if (c === 'tap') {
+        closeSheet(); S.picking = true; $('#map-tip').hidden = false;
+        if (S.expanded) $('#btn-expand').click();
+        fitAll();
+      }
+      if (c === 'me') {
+        if (!('geolocation' in navigator)) return toast('這支手機不支援定位');
+        b.disabled = true; toast('取得位置中…');
+        navigator.geolocation.getCurrentPosition(p => { closeSheet(); cheerAt(p.coords.latitude, p.coords.longitude, '我的位置'); },
+          () => { b.disabled = false; toast('拿不到位置，請允許瀏覽器使用定位，或改用「在地圖上點一下」'); },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+      }
+    };
+  });
+}
+function onMapClick(ev) {
+  if (!S.picking) { if (S.sel) { S.sel = null; renderMap(); renderSel(); renderList(); } return; }
+  cheerAt(ev.latlng.lat, ev.latlng.lng, '地圖上選的點');
+}
+function cheerAt(la, lo, label) {
+  const passes = {};
+  for (const cat of Object.keys(ROUTES)) passes[cat] = passesAt(routeOf(cat), la, lo, 150);
+  if (!Object.values(passes).some(p => p.length)) {
+    toast(S.picking ? '請點在路線上（離路線 150 公尺內）' : '你現在離路線超過 150 公尺，可以改用「在地圖上點一下」');
+    return;
+  }
+  S.picking = false; $('#map-tip').hidden = true;
+  const f = passes.full?.length ? passes.full : passes.half;
+  const kmTxt = f.map(d => (d / 1000).toFixed(1)).join(' / ');
+  setCheer({ type: 'point', la, lo, passes, label: `${label}・${kmTxt}K`, short: f.map(d => (d / 1000).toFixed(1) + 'K').join('、') });
+  fitAll(); toast(f.length > 1 ? `這裡會經過 ${f.length} 次：${f.map(d => (d / 1000).toFixed(1) + 'K').join('、')}` : `加油點設在 ${kmTxt}K`);
+}
+function setCheer(c) { S.cheer = c; store.set('cheer', c); renderAll(); }
 
 // ---------- 名單 ----------
-function renderCheerOptions() {
-  const opts = [['finish', '終點'], ...[5, 10, 15, 20, 21.1, 25, 30, 35, 40].map(k => [String(k), `${k} K`]), ['custom', '自訂公里數']];
-  $('#cheer').innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
-  $('#cheer').value = S.cheer;
-  $('#cheer').onchange = () => { S.cheer = $('#cheer').value; $('#cheer-km').hidden = S.cheer !== 'custom'; renderList(); };
-  $('#cheer-km').oninput = () => renderList();
-}
-function cheerKm(cat) {
-  const len = CAT[cat].len / 1000;
-  if (S.cheer === 'finish') return len;
-  const k = S.cheer === 'custom' ? parseFloat($('#cheer-km').value) : parseFloat(S.cheer);
-  if (!isFinite(k) || k > len) return null;
-  return k;
-}
-const cheerLabel = () => S.cheer === 'finish' ? '到終點' : `到 ${S.cheer === 'custom' ? $('#cheer-km').value : S.cheer}K`;
 function renderList() {
+  $('#cheer-label').textContent = cheerLabel();
+  $('#btn-cheer small').textContent = S.cheer.type === 'point' ? (S.cheer.label?.startsWith('我') ? '加油點：我的位置' : '加油點：地圖選點') : S.cheer.type === 'km' ? '加油點' : '看誰幾點到';
   const el = $('#list');
-  if (!S.runners.length) { el.innerHTML = '<p class="empty">還沒有人加入。到「我」分頁加入跑者吧！</p>'; return; }
-  let html = '';
+  const counts = Object.keys(CAT).map(c => [c, S.runners.filter(r => r.cat === c).length]).filter(x => x[1]);
+  $('#counts').textContent = S.runners.length ? `共 ${S.runners.length} 人` : '';
+  if (!S.runners.length) { el.innerHTML = '<div class="empty"><b>還沒有人加入</b>把連結分享到跑團群組吧</div>'; return; }
+  let h = '';
   for (const cat of Object.keys(CAT)) {
     const rs = S.runners.filter(r => r.cat === cat && shown(r));
     if (!rs.length) continue;
-    rs.sort((x, y) => { const a = AN.get(x.id), b = AN.get(y.id); return (b?.dNow || 0) - (a?.dNow || 0) || (a?.etaFinish || 0) - (b?.etaFinish || 0); });
-    html += `<h3 class="group-h">${catName(cat)}（${rs.length} 人）</h3>`;
+    rs.sort((x, y) => {
+      const a = AN.get(x.id), b = AN.get(y.id), fa = a?.status === 'finished', fb = b?.status === 'finished';
+      if (fa !== fb) return fa ? 1 : -1;
+      if (fa && fb) return (a.finishSec || 0) - (b.finishSec || 0);
+      return (b?.dNow || 0) - (a?.dNow || 0) || x.nick.localeCompare(y.nick, 'zh-Hant');
+    });
+    h += `<div class="grp" style="--c:${cvar(cat)}"><i></i>${catName(cat)}・${rs.length} 人</div>`;
     for (const r of rs) {
       const a = AN.get(r.id); if (!a) continue;
-      const k = S.cheer === 'finish' ? null : cheerKm(cat), e = k != null && a.status !== 'finished' ? etaAt(a, k) : null;
-      const pct = Math.min(100, a.dNow / a.len * 100);
-      html += `<button type="button" class="runner" data-rid="${r.id}" style="--c:${CAT[cat].color}">
-        <div class="r1"><b>${esc(r.nick)}</b><span class="bib">#${esc(r.bib)}</span><span class="st ${a.status}">${a.status === 'finished' ? (a.official ? '完賽' : '抵達') : a.status === 'waiting' ? '未起跑' : a.status === 'running' && !a.estimated ? '跑步中' : '推算中'}</span></div>
-        <div class="prog"><i style="width:${pct.toFixed(1)}%"></i></div>
-        <div class="r3">${a.status === 'finished' ? `🏁 ${fmtHMS(a.finishSec)}${a.official ? '' : '（GPS）'}` : `${(a.dNow / 1000).toFixed(1)} km・${fmtPace(a.pace)}/km・預估完賽 <b>${fmtClock(a.etaFinish)}</b>`}</div>
-        <div class="r4">${a.status === 'finished' ? (a.official ? '正式成績' : 'GPS 估計，等本人填正式成績') : statusText(a)}${r.target_sec ? `・目標 ${hmOf(r.target_sec)}` : ''}</div>
-        ${e ? `<div class="cheer">${cheerLabel()}：${e.passed ? '已經過' : `約 ${fmtClock(e.t)}`}</div>` : ''}
+      const ct = cheerTarget(r, a), isMe = S.me && r.id === S.me.id;
+      let big, lbl;
+      if (a.status === 'finished') { big = fmtHMS(a.finishSec); lbl = a.official ? '完賽' : '完賽（GPS）'; }
+      else if (ct) { big = ct.passed ? '已過' : fmtClock(ct.t); lbl = ct.label; }
+      else if (S.cheer.type !== 'finish' && a.status !== 'waiting') { big = fmtClock(a.etaFinish); lbl = S.cheer.type === 'point' ? '不經過・預估完賽' : '預估完賽'; }
+      else { big = fmtClock(a.etaFinish); lbl = '預估完賽'; }
+      const pct = Math.min(100, (a.dNow || 0) / a.len * 100);
+      h += `<button type="button" class="rc ${S.sel === r.id ? 'sel' : ''} ${isMe ? 'me' : ''}" data-rid="${r.id}" style="--c:${cvar(r.cat)}">
+        ${avatar(r, a)}
+        <span class="nm"><b>${esc(r.nick)}</b>${isMe ? '<span class="tag">我</span>' : ''}${r.bib ? `<span class="tag">#${esc(r.bib)}</span>` : ''}</span>
+        <span class="eta ${a.status === 'finished' ? 'done' : ''}"><b>${big}</b><small>${lbl}</small></span>
+        <span class="sub">${statusText(a)}</span>
+        <span class="bar"><span class="num">${a.status === 'finished' ? (a.len / 1000).toFixed(1) : ((a.dNow || 0) / 1000).toFixed(1)}</span><span>km</span><span class="track"><i style="width:${pct.toFixed(1)}%"></i></span><span>${a.status === 'waiting' ? (r.target_sec ? `目標 ${hm(r.target_sec)}` : '') : `${fmtPace(a.pace)}/km`}</span></span>
+        ${ct?.more?.length ? `<span class="passes">之後再經過：約 ${ct.more.join('、')}</span>` : ''}
       </button>`;
     }
   }
-  el.innerHTML = html || '<p class="empty">這個組別還沒有人</p>';
+  el.innerHTML = h || '<div class="empty">這個組別還沒有人</div>';
 }
-$('#list').addEventListener('click', ev => {
-  const b = ev.target.closest('[data-rid]'); if (!b) return;
-  setTab('map');
-  const m = markers.get(b.dataset.rid), a = AN.get(b.dataset.rid);
-  if (m && a?.pos) { map.setView(a.pos, 15); setTimeout(() => m.openPopup(), 100); } else toast('這位跑者還沒有位置');
-});
+$('#list').addEventListener('click', ev => { const b = ev.target.closest('[data-rid]'); if (b) selectRunner(b.dataset.rid, true); });
 
 // ---------- 定位分享 ----------
 function startShare(silent) {
+  if (!S.token) return;
   if (!('geolocation' in navigator)) { toast('這支手機的瀏覽器不支援定位'); return; }
   if (GEO.watchId != null) return;
   GEO.err = null;
   GEO.watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 60000 });
   store.set('sharing', true);
-  if (!silent) toast('開始分享定位');
-  renderMe();
+  if (!silent) toast('開始分享位置，第一次會問你要不要允許');
+  renderAll();
 }
 function stopShare() {
   if (GEO.watchId != null) navigator.geolocation.clearWatch(GEO.watchId);
-  GEO.watchId = null; store.set('sharing', false); flush(); renderMe();
+  GEO.watchId = null; store.set('sharing', false); flush(); renderAll();
 }
 function onPos(p) {
   const { latitude: la, longitude: lo, accuracy: a } = p.coords;
   const t = Math.round(p.timestamp || Date.now());
-  GEO.acc = a; GEO.err = null;
-  if (a > 100) { renderShareStatus(); return; }
+  const first = GEO.acc == null; GEO.acc = a; GEO.err = null;
+  if (first) toast('定位成功！');
+  if (a > 100) { renderAll(); return; }
   const moved = GEO.last ? hav(GEO.last.la, GEO.last.lo, la, lo) : Infinity;
-  if (t - GEO.lastT < 10000 && moved < 30) { renderShareStatus(); return; }
+  if (t - GEO.lastT < 10000 && moved < 30) return;
   GEO.lastT = t;
   GEO.last = { t, la: +la.toFixed(6), lo: +lo.toFixed(6), a: Math.round(a) };
-  Q.list.push(GEO.last);
-  if (Q.list.length > 3000) Q.list.splice(0, Q.list.length - 3000);
+  Q.list.push(GEO.last); if (Q.list.length > 3000) Q.list.splice(0, Q.list.length - 3000);
   store.set('queue', Q.list);
-  renderShareStatus();
-  if (Q.list.length >= 3 || !Q.lastSent || Date.now() - Q.lastSent > 15000) flush();
+  if (Q.list.length >= 3 || !Q.lastSent || Date.now() - Q.lastSent > 15000) flush(); else renderAll();
 }
 function onPosErr(e) {
-  GEO.err = e.code === 1 ? '定位權限被拒絕：請到手機設定允許這個網站使用位置' : e.code === 3 ? '定位逾時，繼續嘗試中' : '暫時抓不到定位';
-  if (e.code === 1) { navigator.geolocation.clearWatch(GEO.watchId); GEO.watchId = null; store.set('sharing', false); renderMe(); }
-  renderShareStatus();
+  GEO.err = e.code === 1 ? '位置權限被拒絕了。請到手機設定，允許這個瀏覽器使用位置，再回來打開分享。' : e.code === 3 ? '定位逾時，繼續嘗試中…' : '暫時抓不到定位，到空曠的地方比較快。';
+  if (e.code === 1) { navigator.geolocation.clearWatch(GEO.watchId); GEO.watchId = null; store.set('sharing', false); toast('沒有拿到位置權限'); }
+  renderAll();
 }
 async function flush() {
   if (Q.sending || !Q.list.length || !S.token || !navigator.onLine) return;
@@ -365,259 +672,197 @@ async function flush() {
     while (Q.list.length) {
       const batch = Q.list.slice(0, 300);
       await rpc('runlive_push', { p_token: S.token, p_points: batch });
-      Q.list.splice(0, batch.length);
-      Q.lastSent = Date.now(); store.set('lastSent', Q.lastSent); store.set('queue', Q.list);
+      Q.list.splice(0, batch.length); Q.lastSent = Date.now(); store.set('lastSent', Q.lastSent); store.set('queue', Q.list);
     }
-  } catch (e) {
-    if (e.code === 'bad_token') { logoutLocal(); toast('登入失效，請重新登入'); }
-  } finally { Q.sending = false; renderShareStatus(); }
+  } catch (e) { if (e.code === 'bad_token') { logoutLocal(); toast('登入失效，請重新登入'); } }
+  finally { Q.sending = false; renderAll(); }
 }
 setInterval(flush, 15000);
-
 async function setWake(on) {
   store.set('wake', on);
   if (on) {
-    if (!('wakeLock' in navigator)) { toast('這支手機不支援螢幕常亮，請到手機設定把自動鎖定時間調長'); store.set('wake', false); renderMe(); return; }
-    try {
-      if (!GEO.wake) { GEO.wake = await navigator.wakeLock.request('screen'); GEO.wake.addEventListener('release', () => { GEO.wake = null; renderShareStatus(); }); }
-    } catch { /* 頁面不在前景時會失敗，回到前景再試 */ }
+    if (!('wakeLock' in navigator)) { toast('這支手機不支援，請到手機設定把「自動鎖定」調長'); store.set('wake', false); renderAll(); return; }
+    try { if (!GEO.wake) { GEO.wake = await navigator.wakeLock.request('screen'); GEO.wake.addEventListener('release', () => { GEO.wake = null; }); } } catch { }
   } else if (GEO.wake) { await GEO.wake.release().catch(() => { }); GEO.wake = null; }
-  renderMe();
+  renderAll();
 }
 
 // ---------- 我 ----------
-function renderShareStatus() {
-  const el = $('#share-status'); if (!el) return;
-  const parts = [];
-  if (GEO.watchId != null) parts.push(GEO.acc != null ? `GPS 精度約 ${Math.round(GEO.acc)} 公尺` : '等待 GPS 中…');
-  if (GEO.last) parts.push(`最後定位 ${fmtClock(GEO.last.t)}`);
-  parts.push(Q.lastSent ? `上次上傳 ${fmtClock(Q.lastSent)}` : '尚未上傳');
-  if (Q.list.length) parts.push(`待傳 ${Q.list.length} 點（有網路就會補傳）`);
-  if (store.get('wake')) parts.push(GEO.wake ? '螢幕常亮中' : '螢幕常亮（回到這頁時生效）');
-  el.textContent = parts.join('・');
-  const er = $('#share-err'); if (er) { er.textContent = GEO.err || ''; er.hidden = !GEO.err; }
-}
-
-function renderMe() {
-  const el = $('#me'); if (!el) return;
-  if (!S.me) { el.innerHTML = joinHtml(); bindJoin(); return; }
-  const m = S.me, a = AN.get(m.id), cfg = S.team?.config;
-  const gun = gunTime(cfg, m.cat);
-  const sharing = GEO.watchId != null;
-  el.innerHTML = `
-  <div class="card">
-    <h2>${esc(m.nick)} <span style="color:#6b7280;font-weight:500">#${esc(m.bib)}・${catName(m.cat)}</span></h2>
-    <p>${m.target_sec ? `目標 ${hmOf(m.target_sec)}・` : ''}槍聲 ${fmtClock(gun)}${m.start_at ? `・自己記錄出發 ${fmtClock(Date.parse(m.start_at))}` : ''}</p>
-    ${a ? `<p>${statusText(a)}${a.status !== 'finished' && a.status !== 'waiting' ? `・${(a.dNow / 1000).toFixed(1)} km・預估完賽 ${fmtClock(a.etaFinish)}` : ''}</p>` : ''}
-  </div>
-
-  <div class="card">
-    <h2>📍 分享我的位置</h2>
-    <p>開著這一頁時，你的位置會傳給團員看。<b>鎖螢幕或切到別的 App 會暫停</b>，之後打開這頁就會繼續，沒網路時存在手機裡，有網路再補傳。</p>
-    <div class="big-toggle"><button type="button" class="btn ${sharing ? 'dark' : 'primary'}" id="btn-share">${sharing ? '停止分享' : '開始分享定位'}</button></div>
-    <p class="status-line" id="share-status"></p>
-    <p class="warnbox" id="share-err" hidden></p>
-    <label class="big-toggle" style="margin-top:12px;font-size:15px"><input type="checkbox" id="chk-wake" ${store.get('wake') ? 'checked' : ''} style="inline-size:22px;block-size:22px"> 螢幕常亮模式（手機放臂套全程定位，很耗電，建議帶行動電源）</label>
-    <p class="status-line">位置只有輸入團體代碼的人看得到，賽後一週刪除。</p>
-  </div>
-
-  <div class="card">
-    <h2>⏱️ 起跑與完賽</h2>
-    <p>預設用大會槍聲時間計算。排在後面的分區，過起跑線時按一下，預估會更準。</p>
-    <div class="btns">
-      <button type="button" class="btn primary" id="btn-go">我過起跑線了</button>
-      ${m.start_at ? '<button type="button" class="btn ghost" id="btn-go-clear">改回槍聲時間</button>' : ''}
-    </div>
-    <div class="field" style="margin-top:14px">
-      <label for="in-finish">大會正式成績（晶片時間）</label>
-      <div class="row2"><input id="in-finish" type="text" inputmode="numeric" placeholder="例如 4:12:33" value="${m.finish_sec ? fmtHMS(m.finish_sec) : ''}"><button type="button" class="btn dark" id="btn-finish" style="flex:0 0 auto">儲存</button></div>
-      <span class="hint">填了之後名單和完賽圖卡都會用這個時間。成績在大會公告後可以再改。</span>
-    </div>
-    <a class="btn ghost block" href="card.html${TEAM !== 'tc2026' ? `?t=${encodeURIComponent(TEAM)}` : ''}" style="display:flex;align-items:center;justify-content:center;text-decoration:none;color:inherit;margin-top:6px">🖼️ 做完賽圖卡</a>
-  </div>
-
-  <div class="card">
-    <h2>✏️ 我的資料</h2>
-    <div class="field"><label for="ed-nick">暱稱</label><input id="ed-nick" type="text" maxlength="16" value="${esc(m.nick)}"></div>
-    <div class="row2">
-      <div class="field"><label for="ed-cat">組別</label><select id="ed-cat">${Object.entries(CAT).map(([k, c]) => `<option value="${k}" ${k === m.cat ? 'selected' : ''}>${c.name}</option>`).join('')}</select></div>
-      <div class="field"><label for="ed-target">目標時間</label><input id="ed-target" type="text" inputmode="numeric" placeholder="4:30" value="${hmOf(m.target_sec)}"></div>
-    </div>
-    <button type="button" class="btn dark" id="btn-save">儲存資料</button>
-    <div class="field" style="margin-top:16px"><label for="ed-pin">改 PIN（4 位數字）</label>
-      <div class="pw"><input id="ed-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password"><button type="button" class="btn ghost" data-eye="ed-pin">顯示</button><button type="button" class="btn dark" id="btn-pin">更新</button></div>
-      <span class="hint">換手機時用號碼布＋PIN 登入。忘記 PIN 請找管理者重設。</span></div>
-  </div>
-
-  <div class="card">
-    <div class="btns" style="margin-top:0">
-      <button type="button" class="btn ghost" id="btn-logout">登出這支手機</button>
-      <button type="button" class="btn danger" id="btn-delete">刪除我的資料</button>
-    </div>
-  </div>
-  ${adminHtml()}`;
-  bindMe(); bindAdmin(); renderShareStatus();
-}
-
-function joinHtml() {
-  return `
-  <div class="card">
-    <h2>🏃 我要跑（第一次加入）</h2>
-    <form id="f-join">
-      <div class="row2">
-        <div class="field"><label for="j-bib">號碼布</label><input id="j-bib" type="text" inputmode="numeric" autocapitalize="characters" maxlength="8" required></div>
-        <div class="field"><label for="j-cat">組別</label><select id="j-cat">${Object.entries(CAT).map(([k, c]) => `<option value="${k}">${c.name}</option>`).join('')}</select></div>
-      </div>
-      <div class="field"><label for="j-nick">暱稱（地圖上顯示）</label><input id="j-nick" type="text" maxlength="16" required></div>
-      <div class="field"><label for="j-target">目標完賽時間（選填）</label><input id="j-target" type="text" inputmode="numeric" placeholder="例如 4:30"><span class="hint">還沒有定位時，用這個配速推算位置。</span></div>
-      <div class="field"><label for="j-pin">自訂 4 位數 PIN</label>
-        <div class="pw"><input id="j-pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="new-password" required><button type="button" class="btn ghost" data-eye="j-pin">顯示</button></div>
-        <span class="hint">換手機時用號碼布＋PIN 登入。</span></div>
-      <button class="btn primary block" type="submit">加入</button>
-    </form>
-  </div>
-  <div class="card">
-    <h2>📱 我已經加入過（換手機登入）</h2>
-    <form id="f-login">
-      <div class="row2">
-        <div class="field"><label for="l-bib">號碼布</label><input id="l-bib" type="text" inputmode="numeric" maxlength="8" required></div>
-        <div class="field"><label for="l-pin">PIN</label><div class="pw"><input id="l-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" required><button type="button" class="btn ghost" data-eye="l-pin">顯示</button></div></div>
-      </div>
-      <button class="btn dark block" type="submit">登入</button>
-      <p class="status-line">登入後，舊手機會自動登出。忘記 PIN 請找管理者重設。</p>
-    </form>
-  </div>
-  <div class="card">
-    <h2>📣 我是加油團（只看不跑）</h2>
-    <p>直接看地圖和名單，不用加入。</p>
-    <button type="button" class="btn ghost block" id="btn-watch">看大家跑到哪</button>
-  </div>
-  ${adminHtml()}`;
-}
-
-document.addEventListener('click', ev => {
-  const b = ev.target.closest('[data-eye]'); if (!b) return;
-  const i = document.getElementById(b.dataset.eye);
-  i.type = i.type === 'password' ? 'text' : 'password';
-  b.textContent = i.type === 'password' ? '顯示' : '隱藏';
-});
-
-function setLogin(res) {
-  S.token = res.token; store.set('token', res.token);
-  const { token, ...me } = res; S.me = me; store.set('me', me); store.del('watcher');
-}
-function logoutLocal() {
-  stopShare(); S.token = null; S.me = null; store.del('token'); store.del('me'); Q.list = []; store.set('queue', []); renderMe();
-}
-
-function bindJoin() {
-  $('#f-join').onsubmit = async ev => {
-    ev.preventDefault();
-    const tgt = $('#j-target').value.trim();
-    const target_sec = tgt ? parseHMS(tgt) : null;
-    if (tgt && !target_sec) return toast('目標時間格式像 4:30（4 小時 30 分）');
-    try {
-      const res = await rpc('runlive_join', { p_team: TEAM, p_code: S.code, p_bib: $('#j-bib').value.trim(), p_nick: $('#j-nick').value.trim(), p_cat: $('#j-cat').value, p_target_sec: target_sec, p_pin: $('#j-pin').value.trim() });
-      setLogin(res); toast('加入成功！'); await poll(true); renderFilters(); renderMe();
-    } catch (e) { toast(e.message); }
-  };
-  $('#f-login').onsubmit = async ev => {
-    ev.preventDefault();
-    try {
-      const res = await rpc('runlive_login', { p_team: TEAM, p_code: S.code, p_bib: $('#l-bib').value.trim(), p_pin: $('#l-pin').value.trim() });
-      if (res.error) return toast(`PIN 不對，還可以試 ${res.left} 次`);
-      setLogin(res); toast('登入成功'); await poll(true); renderMe();
-    } catch (e) { toast(e.message); }
-  };
-  $('#btn-watch').onclick = () => { store.set('watcher', true); setTab('map'); fitAll(); };
-}
-
 async function update(patch, okMsg) {
-  try { const me = await rpc('runlive_update', { p_token: S.token, p_patch: patch }); S.me = { ...S.me, ...me }; store.set('me', S.me); toast(okMsg); await poll(); renderMe(); renderFilters(); }
-  catch (e) { toast(e.message); if (e.code === 'bad_token') logoutLocal(); }
+  try {
+    const me = await rpc('runlive_update', { p_token: S.token, p_patch: patch });
+    S.me = { ...S.me, ...me }; store.set('me', S.me); if (okMsg) toast(okMsg);
+    await poll().catch(() => { }); renderAll(); return true;
+  } catch (e) { toast(e.message); if (e.code === 'bad_token') { logoutLocal(); renderAll(); } return false; }
 }
-function bindMe() {
-  $('#btn-share').onclick = () => GEO.watchId != null ? stopShare() : startShare();
-  $('#chk-wake').onchange = ev => setWake(ev.target.checked);
-  $('#btn-go').onclick = () => update({ start_at: new Date().toISOString() }, `已記錄出發時間 ${fmtClock(Date.now())}`);
-  $('#btn-go-clear') && ($('#btn-go-clear').onclick = () => update({ start_at: null }, '改回槍聲時間'));
-  $('#btn-finish').onclick = () => {
-    const v = $('#in-finish').value.trim();
-    if (!v) return update({ finish_sec: null }, '已清除完賽成績');
-    const s = parseHMS(v); if (!s) return toast('格式像 4:12:33');
-    update({ finish_sec: s }, `已儲存完賽成績 ${fmtHMS(s)}`);
+function shareStatus() {
+  if (GEO.watchId == null) return GEO.err ? '沒有權限' : '關閉中';
+  const p = [GEO.acc != null ? `精度約 ${Math.round(GEO.acc)} 公尺` : '等待 GPS…'];
+  if (Q.lastSent) p.push(`${fmtClock(Q.lastSent)} 已上傳`);
+  if (Q.list.length) p.push(`待傳 ${Q.list.length} 點`);
+  return p.join('・');
+}
+function renderMe() {
+  const el = $('#me');
+  if (!S.me) {
+    el.innerHTML = `<div class="me-head"><span class="av" style="--c:#555">${ICON.cheer.replace('<svg', '<svg width="28" height="28"')}</span><div><h2>加油團</h2><p>你正在看大家的位置</p></div></div>
+      <div class="sec"><button type="button" class="item" data-go="join1"><div class="grow"><b>我也要跑</b><span>加入地圖，比賽時分享位置</span></div>${ICON.chev}</button>
+      <button type="button" class="item" data-go="login"><div class="grow"><b>我已經加入過</b><span>換手機登入</span></div>${ICON.chev}</button></div>
+      ${adminBlock()}`;
+    bindMeCommon(); return;
+  }
+  const m = S.me, a = AN.get(m.id), cfg = S.team?.config, gun = gunTime(cfg, m.cat), sharing = GEO.watchId != null;
+  el.innerHTML = `
+    <div class="me-head"><span class="av" style="--c:${cvar(m.cat)}">${esc(initial(m.nick))}</span><div style="min-width:0"><h2>${esc(m.nick)}</h2><p>${catName(m.cat)}${m.bib ? `・#${esc(m.bib)}` : '・號碼布未填'}${m.target_sec ? `・目標 ${hm(m.target_sec)}` : ''}</p></div></div>
+    <div class="sec"><h3>比賽當天</h3>
+      <label class="item"><div class="grow"><b>分享我的位置</b><span id="share-st">${shareStatus()}</span></div><input type="checkbox" class="switch" id="sw-share" ${sharing ? 'checked' : ''} aria-label="分享我的位置"></label>
+      ${GEO.err ? `<div class="warn">${esc(GEO.err)}</div>` : ''}
+      <label class="item"><div class="grow"><b>螢幕常亮</b><span>手機放臂套全程定位用，很耗電</span></div><input type="checkbox" class="switch" id="sw-wake" ${store.get('wake') ? 'checked' : ''} aria-label="螢幕常亮"></label>
+      <button type="button" class="item" id="it-start"><div class="grow"><b>起跑時間</b><span>${m.start_at ? '自己記錄的過線時間' : '大會鳴槍時間'}</span></div><span class="val">${fmtClock(m.start_at ? Date.parse(m.start_at) : gun)}</span>${ICON.chev}</button>
+    </div>
+    <p class="note">分享只在這個網頁開著時有效，鎖螢幕或切到別的 App 會暫停，回來就會補上。位置只有團內看得到，賽後一週刪除。</p>
+    <div class="sec"><h3>成績</h3>
+      <button type="button" class="item" id="it-finish"><div class="grow"><b>大會正式成績</b><span>${m.finish_sec ? '名單和圖卡都用這個時間' : '跑完再填，之後也能改'}</span></div><span class="val">${m.finish_sec ? fmtHMS(m.finish_sec) : '—'}</span>${ICON.chev}</button>
+      <a class="item" href="${$('#tab-card').getAttribute('href')}" style="text-decoration:none;color:inherit"><div class="grow"><b>做完賽圖卡</b><span>IG 限動尺寸</span></div>${ICON.chev}</a>
+    </div>
+    <div class="sec"><h3>我的資料</h3>
+      <button type="button" class="item" id="it-edit"><div class="grow"><b>暱稱、組別、號碼布、目標</b><span>${esc(m.nick)}・${catName(m.cat)}${m.bib ? `・#${esc(m.bib)}` : ''}</span></div>${ICON.chev}</button>
+      <button type="button" class="item" id="it-pin"><div class="grow"><b>改 PIN</b><span>換手機登入用</span></div>${ICON.chev}</button>
+    </div>
+    <div class="sec">
+      <button type="button" class="item" id="it-logout"><div class="grow"><b>登出這支手機</b></div></button>
+      <button type="button" class="item" id="it-del"><div class="grow"><b style="color:#9b1c1c">刪除我的資料</b><span>暱稱和所有定位紀錄都會刪掉</span></div></button>
+    </div>
+    ${adminBlock()}`;
+  $('#sw-share').onchange = ev => ev.target.checked ? startShare() : stopShare();
+  $('#sw-wake').onchange = ev => setWake(ev.target.checked);
+  $('#it-start').onclick = openStart;
+  $('#it-finish').onclick = () => openFinish();
+  $('#it-edit').onclick = openEdit;
+  $('#it-pin').onclick = () => openSheet('改 PIN', `${pinField('s-pin', '新的 4 位數 PIN', '')}<button type="button" class="btn primary block lg" id="s-ok">更新</button>`, b => {
+    $('#s-ok').onclick = async () => { const p = $('#s-pin').value.trim(); if (!/^\d{4}$/.test(p)) return toast(ERR.bad_pin); if (await update({ pin: p }, 'PIN 已更新')) closeSheet(); };
+  });
+  $('#it-logout').onclick = async () => { if (await confirmBox('登出後，要點你的名字、輸入 PIN 才能登入回來。', '登出')) { logoutLocal(); S.watcher = true; store.set('watcher', true); renderAll(); } };
+  $('#it-del').onclick = async () => {
+    if (!await confirmBox('會刪除你的暱稱和所有定位紀錄，無法復原。', '刪除')) return;
+    try { await rpc('runlive_delete_me', { p_token: S.token }); logoutLocal(); await poll(true); toast('已刪除你的資料'); showOnboard('role'); } catch (e) { toast(e.message); }
   };
-  $('#btn-save').onclick = () => {
-    const tgt = $('#ed-target').value.trim(), s = tgt ? parseHMS(tgt) : null;
-    if (tgt && !s) return toast('目標時間格式像 4:30');
-    update({ nick: $('#ed-nick').value.trim(), cat: $('#ed-cat').value, target_sec: s }, '資料已更新');
-  };
-  $('#btn-pin').onclick = () => {
-    const p = $('#ed-pin').value.trim(); if (!/^\d{4}$/.test(p)) return toast('PIN 要 4 位數字');
-    update({ pin: p }, 'PIN 已更新');
-  };
-  $('#btn-logout').onclick = async () => { if (await confirmBox('登出後要用號碼布＋PIN 才能登入回來。確定登出這支手機？', '登出')) logoutLocal(); };
-  $('#btn-delete').onclick = async () => {
-    if (!await confirmBox('會刪除你的暱稱、號碼和所有定位紀錄，無法復原。確定刪除？', '刪除')) return;
-    try { await rpc('runlive_delete_me', { p_token: S.token }); logoutLocal(); await poll(true); toast('已刪除你的資料'); } catch (e) { toast(e.message); }
-  };
+  bindMeCommon();
+}
+function bindMeCommon() {
+  $('#me').querySelectorAll('[data-go]').forEach(b => b.onclick = () => showOnboard(b.dataset.go));
+  const al = $('#admin-open'); if (al) al.onclick = openAdminLogin;
+}
+function openStart() {
+  const gun = gunTime(S.team?.config, S.me.cat);
+  openSheet('起跑時間', `<p class="note" style="padding:0">排在後面的分區，過起跑線可能比鳴槍晚 10 分鐘以上。記錄自己的過線時間，預估會更準。</p>
+    <button type="button" class="choice" data-s="gun" aria-pressed="${!S.me.start_at}">${ICON.flag}<span><b>用大會鳴槍時間</b><span>${fmtClock(gun)}</span></span></button>
+    <button type="button" class="choice" data-s="now">${ICON.run}<span><b>我現在過起跑線</b><span>記錄成 ${fmtClock(Date.now())}</span></span></button>
+    <div class="field"><label for="s-time">或自己輸入</label><div class="row"><input class="grow" id="s-time" type="time" value="${S.me.start_at ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Taipei', hour: '2-digit', minute: '2-digit' }).format(Date.parse(S.me.start_at)) : ''}"><button type="button" class="btn dark" id="s-ok">儲存</button></div></div>`, () => {
+    $('#sheet-body').onclick = async ev => {
+      const b = ev.target.closest('[data-s]'); if (!b) return;
+      if (await update({ start_at: b.dataset.s === 'gun' ? null : new Date().toISOString() }, b.dataset.s === 'gun' ? '改用鳴槍時間' : '已記錄過線時間')) closeSheet();
+    };
+    $('#s-ok').onclick = async () => {
+      const v = $('#s-time').value; if (!v) return toast('先選時間');
+      const iso = `${S.team?.config?.date}T${v}:00+08:00`;
+      if (await update({ start_at: new Date(iso).toISOString() }, `起跑時間改成 ${v}`)) closeSheet();
+    };
+  });
+}
+function openFinish(justArrived) {
+  const a = AN.get(S.me.id), gps = a?.status === 'finished' && !a.official ? a.finishSec : null;
+  openSheet(justArrived ? '🎉 恭喜完賽！' : '大會正式成績', `
+    <p class="note" style="padding:0">${justArrived ? '先休息喝水！晶片成績公告後再回來填也可以。' : '填大會公告的晶片時間，名單和完賽圖卡都會用這個時間。'}</p>
+    <div class="field"><label for="s-fin">完賽時間（時:分:秒）</label><input id="s-fin" type="text" inputmode="numeric" placeholder="例如 4:12:33" value="${S.me.finish_sec ? fmtHMS(S.me.finish_sec) : ''}" style="font-family:var(--num);font-size:28px;font-weight:700;min-block-size:56px">
+    ${gps ? `<span class="hint">GPS 估計約 ${fmtHMS(gps)}，請以大會成績為準。</span>` : ''}</div>
+    <button type="button" class="btn primary block lg" id="s-ok">儲存成績</button>
+    ${S.me.finish_sec ? '<button type="button" class="btn ghost block" id="s-clear" style="margin-top:8px">清除成績</button>' : ''}
+    <a class="btn dark block" style="margin:10px 0" href="${$('#tab-card').getAttribute('href')}">做完賽圖卡</a>`, () => {
+    $('#s-ok').onclick = async () => {
+      const s = parseHMS($('#s-fin').value); if (!s) return toast('格式像 4:12:33');
+      if (await update({ finish_sec: s }, `已儲存 ${fmtHMS(s)}`)) closeSheet();
+    };
+    const c = $('#s-clear'); if (c) c.onclick = async () => { if (await update({ finish_sec: null }, '已清除成績')) closeSheet(); };
+  });
+}
+function openEdit() {
+  const m = S.me;
+  openSheet('我的資料', `
+    <div class="field"><label for="e-nick">暱稱</label><input id="e-nick" type="text" maxlength="12" value="${esc(m.nick)}"></div>
+    <div class="field"><span class="lbl">組別</span><div class="opts" id="e-cat">${Object.entries(CAT).map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${k === m.cat}">${c.name}</button>`).join('')}</div></div>
+    <div class="grid2"><div class="field"><label for="e-bib">號碼布</label><input id="e-bib" type="text" inputmode="numeric" maxlength="8" value="${esc(m.bib || '')}"></div>
+    <div class="field"><label for="e-tgt">目標時間</label><input id="e-tgt" type="text" inputmode="numeric" placeholder="4:30" value="${hm(m.target_sec)}"></div></div>
+    <button type="button" class="btn primary block lg" id="e-ok">儲存</button>`, () => {
+    let cat = m.cat;
+    $('#e-cat').onclick = ev => { const b = ev.target.closest('[data-cat]'); if (!b) return; cat = b.dataset.cat; $('#e-cat').querySelectorAll('[data-cat]').forEach(x => x.setAttribute('aria-pressed', x === b)); };
+    $('#e-ok').onclick = async () => {
+      const t = $('#e-tgt').value.trim(), s = t ? parseHMS(t) : null;
+      if (t && !s) return toast('目標時間格式像 4:30');
+      if (await update({ nick: $('#e-nick').value.trim(), cat, bib: $('#e-bib').value.trim() || null, target_sec: s }, '已更新')) closeSheet();
+    };
+  });
 }
 
 // ---------- 管理者 ----------
-function adminHtml() {
-  return `<details class="admin" ${S.adminCode ? 'open' : ''}><summary>管理者</summary><div id="adm">${S.adminCode ? '' : `
-    <div class="row2"><input id="adm-code" type="password" autocomplete="off" placeholder="管理碼"><button type="button" class="btn dark" id="adm-go" style="flex:0 0 auto">進入</button></div>`}</div></details>`;
+function adminBlock() { return S.adminCode ? '' : '<button type="button" class="admin-link" id="admin-open">管理者</button>'; }
+function openAdminLogin() {
+  openSheet('管理者', `<div class="field"><label for="a-code">管理碼</label><input id="a-code" type="password" autocomplete="off"></div><button type="button" class="btn dark block lg" id="a-ok">進入</button>`, () => {
+    $('#a-ok').onclick = async () => {
+      S.adminCode = $('#a-code').value.trim();
+      try { await admin('list'); closeSheet(); setTab('me'); loadAdmin(); } catch (e) { S.adminCode = null; toast(e.message); }
+    };
+  });
 }
-function bindAdmin() {
-  const go = $('#adm-go');
-  if (go) go.onclick = () => { S.adminCode = $('#adm-code').value.trim(); loadAdmin(); };
-  if (S.adminCode) loadAdmin();
-}
-async function admin(action, args = {}) { return rpc('runlive_admin', { p_team: TEAM, p_admin_code: S.adminCode, p_action: action, p_args: args }); }
+const admin = (action, args = {}) => rpc('runlive_admin', { p_team: TEAM, p_admin_code: S.adminCode, p_action: action, p_args: args });
 async function loadAdmin() {
   const box = $('#adm'); if (!box) return;
-  let d;
-  try { d = await admin('list'); } catch (e) { S.adminCode = null; toast(e.message); renderMe(); return; }
+  let d; try { d = await admin('list'); } catch (e) { S.adminCode = null; toast(e.message); return; }
   const cfg = d.team.config || {};
+  const link = new URL(location.origin + location.pathname); if (TEAM !== 'tc2026') link.searchParams.set('t', TEAM);
+  link.searchParams.set('openExternalBrowser', '1'); link.hash = 'k=' + encodeURIComponent(S.code || '');
   box.innerHTML = `
-    <div class="card" style="margin-top:8px">
-      <h2>場次設定</h2>
-      <div class="field"><label for="ad-name">名稱</label><input id="ad-name" type="text" value="${esc(d.team.name)}"></div>
-      <div class="field"><label for="ad-date">比賽日期</label><input id="ad-date" type="date" value="${esc(cfg.date || '')}"></div>
-      <div class="grid2">${Object.entries(CAT).map(([k, c]) => `<div class="field"><label for="ad-s-${k}">${c.name}起跑</label><input id="ad-s-${k}" type="time" value="${esc(cfg.starts?.[k] || '')}"></div>`).join('')}</div>
-      <label class="big-toggle" style="font-size:14px"><input type="checkbox" id="ad-route" ${cfg.useRoute !== false ? 'checked' : ''} style="inline-size:22px;block-size:22px"> 用大會路線對位（練跑不在賽道上時關掉）</label>
-      <div class="btns"><button type="button" class="btn dark" id="ad-save">儲存設定</button></div>
-      <div class="field" style="margin-top:14px"><label for="ad-code">更換團體代碼</label><div class="row2"><input id="ad-code" type="text" autocomplete="off" placeholder="至少 4 碼"><button type="button" class="btn ghost" id="ad-code-go" style="flex:0 0 auto">更換</button></div><span class="hint">換了之後，大家要重新輸入新代碼。</span></div>
-    </div>
-    <div class="card"><h2>跑者（${d.runners.length}）</h2>
-      ${d.runners.map(r => `<div class="adm-row"><span><b>${esc(r.nick)}</b> #${esc(r.bib)}・${catName(r.cat)}<br><small style="color:#6b7280">${r.pings} 點・最後 ${r.last ? fmtClock(Date.parse(r.last)) : '—'}${r.failed ? `・PIN 錯 ${r.failed} 次` : ''}</small></span>
-        <button type="button" class="btn ghost" data-pin="${esc(r.bib)}">重設 PIN</button><button type="button" class="btn danger" data-rm="${esc(r.bib)}">移除</button></div>`).join('') || '<p>還沒有人</p>'}
-      <div class="btns"><button type="button" class="btn danger" id="ad-clear">清除全部定位紀錄</button></div>
-    </div>`;
-  $('#ad-save').onclick = async () => {
-    const starts = {}; for (const k of Object.keys(CAT)) { const v = $(`#ad-s-${k}`).value; if (v) starts[k] = v.slice(0, 5); }
-    const config = { ...cfg, date: $('#ad-date').value, starts, useRoute: $('#ad-route').checked };
-    try { await admin('set_config', { config, name: $('#ad-name').value.trim() }); toast('設定已儲存'); await poll(true); loadAdmin(); } catch (e) { toast(e.message); }
+    <div class="sec"><h3>分享給群組</h3><div class="inner"><p class="note" style="padding:0">這個連結已經帶好團體代碼，在 LINE 裡點開會自動用手機瀏覽器開。</p>
+      <div class="row"><input class="grow" type="text" readonly value="${esc(link)}" id="a-link"><button type="button" class="btn dark" id="a-copy">複製</button></div></div></div>
+    <div class="sec"><h3>場次設定</h3><div class="inner">
+      <div class="field"><label for="a-name">名稱</label><input id="a-name" type="text" value="${esc(d.team.name)}"></div>
+      <div class="field"><label for="a-date">比賽日期</label><input id="a-date" type="date" value="${esc(cfg.date || '')}"></div>
+      <div class="grid2">${Object.entries(CAT).map(([k, c]) => `<div class="field" style="margin:6px 0"><label for="a-s-${k}">${c.name}鳴槍</label><input id="a-s-${k}" type="time" value="${esc(cfg.starts?.[k] || '')}"></div>`).join('')}</div>
+      <label class="item" style="padding:12px 0;border:0"><div class="grow"><b>用大會路線對位</b><span>練跑不在賽道上時關掉</span></div><input type="checkbox" class="switch" id="a-route" ${cfg.useRoute !== false ? 'checked' : ''}></label>
+      <button type="button" class="btn dark block" id="a-save">儲存設定</button>
+      <div class="field" style="margin-top:18px"><label for="a-code2">更換團體代碼</label><div class="row"><input class="grow" id="a-code2" type="text" autocomplete="off" placeholder="至少 4 碼"><button type="button" class="btn ghost" id="a-code-go">更換</button></div><span class="hint">換了之後，舊連結會失效。</span></div>
+    </div></div>
+    <div class="sec"><h3>跑者 ${d.runners.length} 人</h3>
+      ${d.runners.map(r => `<div class="adm-r"><div class="grow"><b>${esc(r.nick)}</b> <span class="tag">${catName(r.cat)}</span>${r.bib ? ` <span class="tag">#${esc(r.bib)}</span>` : ''}<small>${r.pings} 個定位點${r.last ? `・最後 ${fmtClock(Date.parse(r.last))}` : ''}${r.failed ? `・PIN 錯 ${r.failed} 次` : ''}</small></div>
+        <button type="button" class="btn sm ghost" data-pin="${r.id}" data-n="${esc(r.nick)}">重設 PIN</button><button type="button" class="btn sm danger" data-rm="${r.id}" data-n="${esc(r.nick)}">移除</button></div>`).join('') || '<div class="inner">還沒有人</div>'}
+      <div class="inner" style="padding-top:10px"><button type="button" class="btn danger block" id="a-clear">清除全部定位紀錄</button></div></div>
+    <button type="button" class="admin-link" id="a-exit">離開管理者模式</button>`;
+  $('#a-copy').onclick = async () => { try { await navigator.clipboard.writeText($('#a-link').value); toast('已複製連結'); } catch { $('#a-link').select(); toast('請長按連結複製'); } };
+  $('#a-save').onclick = async () => {
+    const starts = {}; for (const k of Object.keys(CAT)) { const v = $(`#a-s-${k}`).value; if (v) starts[k] = v.slice(0, 5); }
+    try { await admin('set_config', { config: { ...cfg, date: $('#a-date').value, starts, useRoute: $('#a-route').checked }, name: $('#a-name').value.trim() }); toast('設定已儲存'); await poll(true); }
+    catch (e) { toast(e.message); }
   };
-  $('#ad-code-go').onclick = async () => {
-    const c = $('#ad-code').value.trim().toLowerCase(); if (c.length < 4) return toast('代碼至少 4 碼');
-    if (!await confirmBox(`團體代碼改成「${c}」？大家都要重新輸入。`, '更換')) return;
-    try { await admin('set_view_code', { code: c }); S.code = c; store.set('code', c); toast('代碼已更換'); } catch (e) { toast(e.message); }
+  $('#a-code-go').onclick = async () => {
+    const c = $('#a-code2').value.trim().toLowerCase(); if (c.length < 4) return toast(ERR.bad_code_len);
+    if (!await confirmBox(`團體代碼改成「${c}」？舊連結會失效，要重新發連結。`, '更換')) return;
+    try { await admin('set_view_code', { code: c }); S.code = c; store.set('code', c); toast('代碼已更換'); loadAdmin(); } catch (e) { toast(e.message); }
   };
-  $('#ad-clear').onclick = async () => {
-    if (!await confirmBox('清除這個場次所有人的定位紀錄（跑者名單保留），無法復原。', '清除')) return;
+  $('#a-clear').onclick = async () => {
+    if (!await confirmBox('清除所有人的定位紀錄（名單保留），無法復原。', '清除')) return;
     try { const r = await admin('clear_points'); toast(`已清除 ${r.cleared} 點`); await poll(true); loadAdmin(); } catch (e) { toast(e.message); }
   };
+  $('#a-exit').onclick = () => { S.adminCode = null; box.innerHTML = ''; renderMe(); };
   box.onclick = async ev => {
     const rm = ev.target.closest('[data-rm]'), pin = ev.target.closest('[data-pin]');
     if (rm) {
-      if (!await confirmBox(`移除 #${rm.dataset.rm} 和他的定位紀錄？`, '移除')) return;
-      try { await admin('remove', { bib: rm.dataset.rm }); toast('已移除'); await poll(true); loadAdmin(); } catch (e) { toast(e.message); }
+      if (!await confirmBox(`移除「${rm.dataset.n}」和他的定位紀錄？`, '移除')) return;
+      try { await admin('remove', { id: rm.dataset.rm }); toast('已移除'); await poll(true); loadAdmin(); } catch (e) { toast(e.message); }
     }
     if (pin) {
       const p = String(Math.floor(1000 + Math.random() * 9000));
-      if (!await confirmBox(`把 #${pin.dataset.pin} 的 PIN 重設為 ${p}？（請把新 PIN 告訴本人，他舊手機會被登出）`, '重設')) return;
-      try { await admin('reset_pin', { bib: pin.dataset.pin, pin: p }); toast(`已重設，新 PIN：${p}`); loadAdmin(); } catch (e) { toast(e.message); }
+      if (!await confirmBox(`把「${pin.dataset.n}」的 PIN 重設為 ${p}？請把新 PIN 告訴本人。`, '重設')) return;
+      try { await admin('reset_pin', { id: pin.dataset.pin, pin: p }); toast(`已重設，新 PIN：${p}`); loadAdmin(); } catch (e) { toast(e.message); }
     }
   };
 }

@@ -5,122 +5,112 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta name="theme-color" content="#b3122a">
-<title>完賽圖卡｜跑團 Live</title>
+<meta name="theme-color" content="#111214">
+<title>完賽圖卡｜跑團 LIVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;1,700&family=Barlow:ital,wght@1,800&family=Noto+Sans+TC:wght@700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:ital,wght@1,800&family=Noto+Sans+TC:wght@700;900&display=swap">
+<link rel="stylesheet" href="ui.css?v=5">
 <style>
-[hidden]{display:none!important}
-:root{--red:#b3122a;--ink:#1b1d22;--mute:#6b7280;--line:#e5e7eb;--target:44px;color-scheme:light;
-  font-family:system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif}
-*{box-sizing:border-box}
-body{margin:0;background:#f6f6f4;color:var(--ink);font-size:16px;line-height:1.5;overflow-wrap:break-word}
-button,input,select{font:inherit}
-:where(button,select,input:not([type=checkbox],[type=radio],[type=range])){min-block-size:var(--target)}
-.wrap{max-inline-size:980px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 12px) max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 30px) max(14px,env(safe-area-inset-left,0px))}
-.head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.head h1{font-size:20px;margin:0;flex:1}
-.head a{color:var(--mute);text-decoration:none;min-block-size:var(--target);display:inline-flex;align-items:center}
-.grid{display:grid;gap:16px;grid-template-columns:1fr}
-@media (min-width:760px){.grid{grid-template-columns:minmax(0,380px) 1fr;align-items:start}.preview{position:sticky;top:12px}}
-.preview canvas{inline-size:100%;block-size:auto;aspect-ratio:9/16;border-radius:14px;box-shadow:0 6px 24px #0003;touch-action:none;background:#333;display:block;cursor:grab}
-.preview .hint{font-size:12px;color:var(--mute);text-align:center;margin-top:6px}
-.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px}
-.card h2{font-size:16px;margin:0 0 6px}
-.field{display:flex;flex-direction:column;gap:4px;margin:8px 0}
-.field label{font-size:14px;font-weight:600}
-.field .hint{font-size:12px;color:var(--mute)}
-input[type=text],select{border:1px solid #d1d5db;border-radius:10px;padding:0 12px;background:#fff;min-inline-size:0;inline-size:100%}
-.row2{display:flex;gap:8px}.row2>*{flex:1;min-inline-size:0}
-.btn{border:0;border-radius:12px;padding:0 16px;font-weight:700;background:#eef0f3;color:var(--ink);cursor:pointer}
-.btn.primary{background:var(--red);color:#fff}.btn.dark{background:var(--ink);color:#fff}.btn.ghost{background:transparent;border:1px solid #d1d5db}
-.btn.block{inline-size:100%}
-.big{min-block-size:54px;font-size:17px}
-.file{display:flex;align-items:center;justify-content:center;gap:8px;border:2px dashed #cbd5e1;border-radius:14px;min-block-size:64px;cursor:pointer;font-weight:700;color:#334155}
-.file input{position:absolute;inline-size:1px;block-size:1px;opacity:0}
-.swatches{display:flex;gap:10px;flex-wrap:wrap}
-.swatches label{inline-size:44px;block-size:44px;border-radius:50%;background:var(--c);cursor:pointer;border:3px solid #fff;box-shadow:0 0 0 1px #d1d5db}
-.swatches input{position:absolute;opacity:0;pointer-events:none}
-.swatches label:has(input:checked){box-shadow:0 0 0 3px var(--ink)}
-.timebox{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:10px 12px}
-.timebox input{font-size:22px;font-weight:800;letter-spacing:.04em}
-.msg{font-size:13px;color:var(--mute);margin:6px 0 0}
-input[type=range]{inline-size:100%;min-block-size:var(--target)}
-dialog{border:0;border-radius:16px;padding:16px;max-inline-size:min(94vw,420px)}
-dialog::backdrop{background:#000a}
-dialog img{inline-size:100%;border-radius:10px;display:block}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:30;background:#111;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;max-inline-size:90vw}
+body{min-block-size:100dvh}
+.chead{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;background:var(--ink);color:#fff;
+  padding:env(safe-area-inset-top,0px) max(8px,env(safe-area-inset-right,0px)) 0 max(8px,env(safe-area-inset-left,0px));min-block-size:calc(var(--top-h) + env(safe-area-inset-top,0px))}
+.chead a{color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:4px;min-block-size:var(--target);padding:0 8px;font-weight:600}
+.chead h1{font-size:17px;flex:1;text-align:center;margin-right:64px}
+.cwrap{max-inline-size:980px;margin:0 auto;padding:14px max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 100px) max(14px,env(safe-area-inset-left,0px))}
+.cgrid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+.cgrid>*{min-inline-size:0}
+@media (min-width:760px){.cgrid{grid-template-columns:minmax(0,360px) 1fr;align-items:start}.pv{position:sticky;top:70px}}
+.pv{position:relative;max-inline-size:min(360px,31dvh);margin-inline:auto;inline-size:100%}
+@media (min-width:760px){.pv{max-inline-size:360px}}
+.pv canvas{display:block;inline-size:100%;block-size:auto;aspect-ratio:9/16;border-radius:16px;box-shadow:0 10px 30px #0003;touch-action:none;background:#2a2b2f;cursor:grab}
+.pv .pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:16px;color:#fff;cursor:pointer;background:#111214d9;text-align:center;padding:10px}
+.pv .pick svg{inline-size:40px;block-size:40px}
+.pv .pick b{font-size:16px}
+.pv .pick span{font-size:13px;opacity:.8}
+.pv input[type=file]{position:absolute;inline-size:1px;block-size:1px;opacity:0;pointer-events:none}
+.pv-tools{display:flex;align-items:center;gap:10px;margin-top:10px}
+.pv-tools input[type=range]{flex:1;min-block-size:var(--target);accent-color:var(--ink)}
+.box{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
+.box h2{font-size:15px;margin-bottom:4px}
+input.timein{font-family:var(--num);font-size:34px;font-weight:700;letter-spacing:.03em;min-block-size:60px!important;text-align:center}
+.src{font-size:13px;margin:8px 0 0;display:flex;gap:6px;align-items:flex-start}
+.src.warnc{color:#9a5b00}.src.okc{color:var(--ok)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chips button{flex:0 0 auto;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:0 14px;min-block-size:40px;font-weight:700;font-size:14px;white-space:nowrap}
+.chips button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.sw{display:flex;gap:12px;flex-wrap:wrap}
+.sw label{inline-size:44px;block-size:44px;border-radius:50%;background:var(--c);cursor:pointer;box-shadow:0 0 0 2px #fff,0 0 0 3px #d8d6d0}
+.sw label:has(input:checked){box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ink)}
+.sw input{position:absolute;opacity:0;pointer-events:none}
+details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-size:var(--target);display:flex;align-items:center}
+.savebar{position:fixed;z-index:30;inset:auto 0 0 0;background:#fffffff2;backdrop-filter:blur(8px);border-top:1px solid var(--line);
+  padding:10px max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 10px) max(14px,env(safe-area-inset-left,0px))}
+.savebar .btn{max-inline-size:520px;margin:0 auto}
+.dlg img{inline-size:100%;border-radius:12px;display:block;margin-bottom:12px}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="head"><a id="back" href="./">← 回地圖</a><h1>完賽圖卡</h1></div>
-  <div class="grid">
-    <div class="preview">
-      <canvas id="cv" width="1080" height="1920" role="img" aria-label="完賽圖卡預覽"></canvas>
-      <p class="hint">拖曳照片調整位置，兩指縮放（或用下方滑桿）</p>
-    </div>
+<header class="chead"><a id="back" href="./">‹ 地圖</a><h1>完賽圖卡</h1></header>
+<div class="cwrap">
+  <div class="cgrid">
     <div>
-      <div class="card">
-        <label class="file">📷 選一張完賽照片<input id="in-photo" type="file" accept="image/*"></label>
-        <div class="field"><label for="in-zoom">照片縮放</label><input id="in-zoom" type="range" min="1" max="3" step="0.01" value="1"></div>
+      <div class="pv">
+        <canvas id="cv" width="1080" height="1920" role="img" aria-label="完賽圖卡預覽"></canvas>
+        <label class="pick" id="pick"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2.5"/><circle cx="12" cy="13" r="3.5"/><path d="M8.5 6l1.5-2.5h4L15.5 6"/></svg><b>選一張完賽照片</b><span>直式照片效果最好</span><input id="in-photo" type="file" accept="image/*"></label>
       </div>
+      <div class="pv-tools" id="pv-tools" hidden>
+        <label class="btn ghost sm" for="in-photo2">換照片</label><input id="in-photo2" type="file" accept="image/*" hidden>
+        <input id="in-zoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="照片縮放">
+      </div>
+      <p class="note" id="drag-hint" style="text-align:center;margin-top:6px" hidden>拖曳照片調位置，兩指或滑桿縮放</p>
+    </div>
 
-      <div class="card">
+    <div>
+      <section class="box">
         <h2>完賽時間</h2>
-        <div class="timebox">
-          <div class="field" style="margin:0"><label for="in-time">時間（時:分:秒）</label>
-            <input id="in-time" type="text" inputmode="numeric" placeholder="4:12:33"></div>
-          <p class="msg" id="time-src">請填大會公告的正式成績（晶片時間）。</p>
-          <button type="button" class="btn dark" id="btn-sync" style="margin-top:8px" hidden>同步成我的正式成績</button>
-        </div>
-        <p class="msg">官方成績會在賽後三日內公布在大會計時網站，也可以先用當天現場公告的成績。</p>
-      </div>
+        <input id="in-time" class="timein" type="text" inputmode="numeric" placeholder="0:00:00" aria-label="完賽時間（時:分:秒）">
+        <p class="src" id="time-src"></p>
+        <button type="button" class="btn dark block" id="btn-sync" style="margin-top:10px" hidden>存成我的正式成績</button>
+      </section>
 
-      <div class="card">
-        <h2>文字</h2>
-        <div class="row2">
-          <div class="field"><label for="in-name">名字</label><input id="in-name" type="text" maxlength="12"></div>
-          <div class="field" style="flex:0 0 32%"><label for="in-bib">號碼</label><input id="in-bib" type="text" maxlength="8" inputmode="numeric"></div>
-        </div>
-        <div class="field"><label for="in-sub">第二行（英文名等，選填）</label><input id="in-sub" type="text" maxlength="24"></div>
-        <div class="field"><label for="in-title">標題</label>
-          <select id="in-title">
-            <option>FULL MARATHON FINISHER</option>
-            <option>HALF MARATHON FINISHER</option>
-            <option>10K FINISHER</option>
-            <option>5K FINISHER</option>
-            <option>PERSONAL BEST</option>
-            <option>FIRST MARATHON</option>
-            <option value="__custom">自己打…</option>
-          </select>
-          <input id="in-title-custom" type="text" maxlength="28" placeholder="輸入標題" hidden>
-        </div>
-        <div class="field"><label for="in-team">最上方（跑團名稱）</label><input id="in-team" type="text" maxlength="20"></div>
-        <div class="row2">
-          <div class="field"><label for="in-event">左下（賽事）</label><input id="in-event" type="text" maxlength="30"></div>
-          <div class="field"><label for="in-tag">右下（hashtag）</label><input id="in-tag" type="text" maxlength="24"></div>
-        </div>
-        <div class="field"><span style="font-size:14px;font-weight:600">底色</span>
-          <div class="swatches" id="sw"></div></div>
-      </div>
+      <section class="box">
+        <h2>標題</h2>
+        <div class="chips" id="titles"></div>
+        <input id="in-title-custom" type="text" maxlength="28" placeholder="輸入自己的標題" style="margin-top:8px" hidden>
+      </section>
 
-      <button type="button" class="btn primary block big" id="btn-save">💾 儲存圖片</button>
-      <p class="msg" style="text-align:center">尺寸 1080×1920（IG 限時動態）</p>
+      <section class="box">
+        <div class="grid2" style="grid-template-columns:1fr 34%">
+          <div class="field" style="margin:0"><label for="in-name">名字</label><input id="in-name" type="text" maxlength="12"></div>
+          <div class="field" style="margin:0"><label for="in-bib">號碼</label><input id="in-bib" type="text" maxlength="8" inputmode="numeric"></div>
+        </div>
+        <div class="field" style="margin-bottom:0"><label for="in-sub">第二行（英文名，選填）</label><input id="in-sub" type="text" maxlength="24" autocapitalize="characters"></div>
+      </section>
+
+      <section class="box">
+        <h2 style="margin-bottom:10px">底色</h2>
+        <div class="sw" id="sw"></div>
+        <details class="more" style="margin-top:10px"><summary>更多文字（跑團名、賽事、hashtag）</summary>
+          <div class="field"><label for="in-team">最上方</label><input id="in-team" type="text" maxlength="20"></div>
+          <div class="field"><label for="in-event">左下</label><input id="in-event" type="text" maxlength="30"></div>
+          <div class="field"><label for="in-tag">右下</label><input id="in-tag" type="text" maxlength="24"></div>
+        </details>
+      </section>
     </div>
   </div>
 </div>
+<div class="savebar"><button type="button" class="btn primary block lg" id="btn-save">儲存圖片</button></div>
 
-<dialog id="dlg">
-  <p style="margin:0 0 10px;font-size:14px">長按圖片 →「儲存影像」或「加入照片」</p>
+<dialog id="dlg" class="dlg">
   <img id="dlg-img" alt="完成的完賽圖卡">
-  <div style="display:flex;justify-content:flex-end;margin-top:10px"><button type="button" class="btn dark" id="dlg-close">關閉</button></div>
+  <p style="margin:0 0 12px;font-size:15px">長按圖片，選「儲存影像」或「加入照片」。</p>
+  <div class="row-end"><button type="button" class="btn dark" id="dlg-close">好</button></div>
 </dialog>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script type="module">
-import { CAT, fmtHMS, parseHMS } from './calc.js';
+import { CAT, analyze, fmtHMS, parseHMS } from './calc.js';
 import { SB_URL, SB_KEY } from './config.js';
 
 /* ====== 版型設定（拿到正式模板後只要改這一段） ======
@@ -128,8 +118,8 @@ import { SB_URL, SB_KEY } from './config.js';
 const LAYOUT = {
   W: 1080, H: 1920,
   overlay: null,                         // 模板若是 PNG 疊圖（中間透明），填檔名例如 'template.png'
-  topFog: { to: 560, alpha: .92 },       // 上方白霧
-  bottomFade: { from: 820, alpha: .97 }, // 下方漸層到底色
+  topFog: { to: 560, alpha: .92 },
+  bottomFade: { from: 820, alpha: .97 },
   team:  { y: 300, size: 46, color: '#1b1d22' },
   name:  { y: 1170, size: 104, color: '#fff' },
   sub:   { y: 1262, size: 50, color: '#fff' },
@@ -139,60 +129,81 @@ const LAYOUT = {
   foot:  { y: 1712, size: 34, color: '#fff' },
 };
 const THEMES = { red: '#a3001b', navy: '#0b2a5b', black: '#111111', green: '#0f5132', orange: '#c2410c' };
+const TITLES = ['FULL MARATHON FINISHER', 'HALF MARATHON FINISHER', '10K FINISHER', '5K FINISHER', 'PERSONAL BEST', 'FIRST MARATHON'];
 
 const TEAM = new URLSearchParams(location.search).get('t') || 'tc2026';
 const K = k => `rl_${TEAM}_${k}`;
 const ls = { get(k) { try { return JSON.parse(localStorage.getItem(K(k))); } catch { return null; } }, set(k, v) { try { localStorage.setItem(K(k), JSON.stringify(v)); } catch { } } };
 const $ = s => document.querySelector(s);
 if (TEAM !== 'tc2026') $('#back').href = `./?t=${encodeURIComponent(TEAM)}`;
-
 let toastT; const toast = m => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3000); };
 async function rpc(fn, args) {
   const r = await fetch(SB_URL + fn, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
-  const j = await r.json().catch(() => null); if (!r.ok) throw new Error(j?.message || r.status); return j;
+  const j = await r.json().catch(() => null); if (!r.ok) { const e = new Error(j?.message || r.status); e.code = j?.message; throw e; } return j;
 }
 
 // ---------- 預設值 ----------
 const saved = ls.get('card') || {};
-const me = ls.get('me');
-const titleByCat = { full: 'FULL MARATHON FINISHER', half: 'HALF MARATHON FINISHER', '10k': '10K FINISHER', '5k': '5K FINISHER' };
+let me = ls.get('me');
+const token = ls.get('token'), code = ls.get('code');
+const titleByCat = { full: TITLES[0], half: TITLES[1], '10k': TITLES[2], '5k': TITLES[3] };
 const F = {
   name: saved.name ?? me?.nick ?? '', bib: saved.bib ?? me?.bib ?? '', sub: saved.sub ?? '',
-  title: saved.title ?? titleByCat[me?.cat] ?? 'FULL MARATHON FINISHER',
-  team: saved.team ?? 'RUN TOGETHER', event: saved.event ?? 'TAICHUNG INT\'L MARATHON 2026', tag: saved.tag ?? '#一起跑到終點',
+  title: saved.title ?? titleByCat[me?.cat] ?? TITLES[0],
+  team: saved.team ?? 'RUN TOGETHER', event: saved.event ?? "TAICHUNG INT'L MARATHON 2026", tag: saved.tag ?? '#一起跑到終點',
   theme: saved.theme ?? 'red', time: '',
 };
-for (const k of ['name', 'bib', 'sub', 'team', 'event', 'tag']) $(`#in-${k}`).value = F[k];
-const sel = $('#in-title');
-if ([...sel.options].some(o => o.value === F.title)) sel.value = F.title; else { sel.value = '__custom'; $('#in-title-custom').hidden = false; $('#in-title-custom').value = F.title; }
-$('#sw').innerHTML = Object.entries(THEMES).map(([k, c]) => `<label style="--c:${c}" title="${k}"><input type="radio" name="theme" value="${k}" ${k === F.theme ? 'checked' : ''} aria-label="${k}"></label>`).join('');
+for (const k of ['name', 'bib', 'sub', 'team', 'event', 'tag']) $(`#in-${k}`).value = F[k] || '';
+const isCustom = !TITLES.includes(F.title);
+$('#titles').innerHTML = TITLES.map(t => `<button type="button" data-title="${t}" aria-pressed="${t === F.title}">${t}</button>`).join('') + `<button type="button" data-title="__custom" aria-pressed="${isCustom}">自己打</button>`;
+if (isCustom) { $('#in-title-custom').hidden = false; $('#in-title-custom').value = F.title; }
+$('#sw').innerHTML = Object.entries(THEMES).map(([k, c]) => `<label style="--c:${c}"><input type="radio" name="theme" value="${k}" ${k === F.theme ? 'checked' : ''} aria-label="${k}"></label>`).join('');
 
-// 完賽時間：正式成績 > 自己存的 > 空白
-const token = ls.get('token');
-function setTime(sec, src) { if (sec) { F.time = fmtHMS(sec); $('#in-time').value = F.time; } $('#time-src').textContent = src; }
-if (me?.finish_sec) setTime(me.finish_sec, '目前是你登記的正式成績；大會公告有出入就直接改。');
-else if (saved.time) { F.time = saved.time; $('#in-time').value = saved.time; }
+// ---------- 完賽時間來源 ----------
+let gpsSec = null;
+function setSrc() {
+  const v = parseHMS($('#in-time').value), el = $('#time-src');
+  const official = me?.finish_sec;
+  if (official && v === official) { el.className = 'src okc'; el.textContent = '✓ 這是你登記的大會正式成績'; }
+  else if (!v) { el.className = 'src'; el.textContent = '填大會公告的晶片時間，格式像 4:12:33'; }
+  else if (gpsSec && v === gpsSec) { el.className = 'src warnc'; el.textContent = '⚠ 這是 GPS 估計的時間，請改成大會正式成績'; }
+  else { el.className = 'src'; el.textContent = official ? `你登記的正式成績是 ${fmtHMS(official)}` : '這個時間還沒存成你的正式成績'; }
+  $('#btn-sync').hidden = !(token && v && v !== official);
+}
+function setTime(sec) { if (!sec) return; $('#in-time').value = fmtHMS(sec); readForm(); }
+if (me?.finish_sec) setTime(me.finish_sec);
+else if (saved.time) $('#in-time').value = saved.time;
+setSrc();
 if (token) {
-  rpc('runlive_me', { p_token: token }).then(m => {
-    ls.set('me', m);
-    if (!$('#in-name').value) { $('#in-name').value = m.nick; F.name = m.nick; }
-    if (!$('#in-bib').value) { $('#in-bib').value = m.bib; F.bib = m.bib; }
-    if (m.finish_sec && !saved.time) setTime(m.finish_sec, '目前是你登記的正式成績；大會公告有出入就直接改。');
-    $('#btn-sync').hidden = false; draw();
+  rpc('runlive_me', { p_token: token }).then(async m => {
+    me = m; ls.set('me', m);
+    if (!$('#in-name').value) $('#in-name').value = m.nick;
+    if (!$('#in-bib').value && m.bib) $('#in-bib').value = m.bib;
+    if (m.finish_sec && !saved.time) setTime(m.finish_sec);
+    if (!m.finish_sec && code) {
+      try {
+        const st = await rpc('runlive_state', { p_team: TEAM, p_code: code, p_since: null });
+        const r = st.runners.find(x => x.id === m.id);
+        const a = analyze(r, st.points.filter(p => p.r === m.id), st.team.config, Date.now());
+        if (a.status === 'finished') { gpsSec = a.finishSec; if (!$('#in-time').value) setTime(gpsSec); }
+      } catch { }
+    }
+    readForm(); setSrc(); redraw();
   }).catch(() => { });
 }
 
 // ---------- 照片 ----------
 const photo = { img: null, x: 0, y: 0, z: 1 };
-$('#in-photo').onchange = ev => {
-  const f = ev.target.files[0]; if (!f) return;
+function loadPhoto(f) {
+  if (!f) return;
   const img = new Image();
-  img.onload = () => { photo.img = img; photo.x = 0; photo.y = 0; photo.z = 1; $('#in-zoom').value = 1; draw(); };
-  img.onerror = () => toast('這張照片讀不出來，換一張試試（HEIC 請先轉成 JPG）');
+  img.onload = () => { photo.img = img; photo.x = 0; photo.y = 0; photo.z = 1; $('#in-zoom').value = 1; $('#pick').hidden = true; $('#pv-tools').hidden = false; $('#drag-hint').hidden = false; draw(); };
+  img.onerror = () => toast('這張照片讀不出來，換一張試試');
   img.src = URL.createObjectURL(f);
-};
+}
+$('#in-photo').onchange = ev => loadPhoto(ev.target.files[0]);
+$('#in-photo2').onchange = ev => loadPhoto(ev.target.files[0]);
 $('#in-zoom').oninput = ev => { photo.z = +ev.target.value; draw(); };
-
 const cv = $('#cv'), ctx = cv.getContext('2d');
 const ptrs = new Map(); let pinch0 = null;
 const scale = () => LAYOUT.W / cv.getBoundingClientRect().width;
@@ -210,137 +221,105 @@ cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 // ---------- 繪圖 ----------
 let overlayImg = null;
 if (LAYOUT.overlay) { overlayImg = new Image(); overlayImg.onload = () => draw(); overlayImg.src = LAYOUT.overlay; }
-
 function sparkle(x, y, r) {
   ctx.save(); ctx.translate(x, y); ctx.beginPath();
   for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? r * .28 : r; ctx.lineTo(Math.cos(a - Math.PI / 2) * rr, Math.sin(a - Math.PI / 2) * rr); }
   ctx.closePath(); ctx.fill(); ctx.restore();
 }
-function fitText(text, font, maxW) {
-  let size = font.size; ctx.font = font.css(size);
-  while (ctx.measureText(text).width > maxW && size > 20) { size -= 2; ctx.font = font.css(size); }
-  return size;
-}
+function fitText(text, font, maxW) { let size = font.size; ctx.font = font.css(size); while (ctx.measureText(text).width > maxW && size > 20) { size -= 2; ctx.font = font.css(size); } return size; }
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; };
 function draw() {
   const L = LAYOUT, { W, H } = L, theme = THEMES[F.theme] || THEMES.red;
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(0, 0, W, H);
+  ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#3a3b40'; ctx.fillRect(0, 0, W, H);
   if (photo.img) {
     const im = photo.img, base = Math.max(W / im.naturalWidth, H / im.naturalHeight) * photo.z;
     const w = im.naturalWidth * base, h = im.naturalHeight * base;
-    photo.x = Math.max(Math.min(photo.x, (w - W) / 2), -(w - W) / 2);
-    photo.y = Math.max(Math.min(photo.y, (h - H) / 2), -(h - H) / 2);
+    photo.x = Math.max(Math.min(photo.x, (w - W) / 2), -(w - W) / 2); photo.y = Math.max(Math.min(photo.y, (h - H) / 2), -(h - H) / 2);
     ctx.drawImage(im, (W - w) / 2 + photo.x, (H - h) / 2 + photo.y, w, h);
-  } else {
-    ctx.fillStyle = '#ffffff80'; ctx.font = '700 48px "Noto Sans TC"'; ctx.textAlign = 'center'; ctx.fillText('先選一張照片', W / 2, H / 2 - 200);
   }
-  // 上方白霧
   let g = ctx.createLinearGradient(0, 0, 0, L.topFog.to);
   g.addColorStop(0, `rgba(255,255,255,${L.topFog.alpha})`); g.addColorStop(.45, `rgba(255,255,255,${L.topFog.alpha * .55})`); g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, L.topFog.to);
-  // 下方漸層
   g = ctx.createLinearGradient(0, L.bottomFade.from, 0, H);
   g.addColorStop(0, hexA(theme, 0)); g.addColorStop(.45, hexA(theme, .55)); g.addColorStop(1, hexA(theme, L.bottomFade.alpha));
   ctx.fillStyle = g; ctx.fillRect(0, L.bottomFade.from, W, H - L.bottomFade.from);
   if (overlayImg?.complete) ctx.drawImage(overlayImg, 0, 0, W, H);
-
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  // 跑團名
   if (F.team) { ctx.fillStyle = L.team.color; ctx.font = `italic 800 ${L.team.size}px Barlow, "Noto Sans TC"`; ctx.fillText(F.team.toUpperCase(), W / 2, L.team.y); }
-
   const shadow = () => { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4; };
   const noShadow = () => { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; };
-  // 名字｜號碼
   shadow();
-  const nameFont = { size: L.name.size, css: s => `900 ${s}px "Noto Sans TC"` };
-  const bibTxt = F.bib ? String(F.bib) : '';
-  ctx.font = nameFont.css(L.name.size);
-  let size = L.name.size;
-  const gap = 70;
+  const nameCss = s => `900 ${s}px "Noto Sans TC"`, bibTxt = F.bib ? String(F.bib) : '', gap = 70;
+  let size = L.name.size; ctx.font = nameCss(size);
   const total = () => ctx.measureText(F.name).width + (bibTxt ? gap + ctx.measureText(bibTxt).width : 0);
-  while (total() > W - 140 && size > 40) { size -= 2; ctx.font = nameFont.css(size); }
-  const nw = ctx.measureText(F.name).width, bw = bibTxt ? ctx.measureText(bibTxt).width : 0, tw = total();
-  let x0 = (W - tw) / 2;
-  ctx.fillStyle = L.name.color; ctx.textAlign = 'left';
-  ctx.fillText(F.name, x0, L.name.y);
+  while (total() > W - 140 && size > 40) { size -= 2; ctx.font = nameCss(size); }
+  const nw = ctx.measureText(F.name).width, x0 = (W - total()) / 2;
+  ctx.fillStyle = L.name.color; ctx.textAlign = 'left'; ctx.fillText(F.name, x0, L.name.y);
   if (bibTxt) {
     noShadow(); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(x0 + nw + gap / 2 - 2, L.name.y - size * .82, 4, size * .92); shadow();
     ctx.fillStyle = L.name.color; ctx.fillText(bibTxt, x0 + nw + gap, L.name.y);
   }
   ctx.textAlign = 'center';
   if (F.sub) { ctx.fillStyle = L.sub.color; fitText(F.sub.toUpperCase(), { size: L.sub.size, css: s => `700 ${s}px "Barlow Condensed", "Noto Sans TC"` }, W - 160); ctx.fillText(F.sub.toUpperCase(), W / 2, L.sub.y); }
-  // 標題
-  const titleY = F.sub ? L.title.y : L.title.y - 40;
-  ctx.fillStyle = L.title.color;
-  fitText(F.title, { size: L.title.size, css: s => `italic 800 ${s}px Barlow, "Noto Sans TC"` }, W - 140);
-  ctx.fillText(F.title, W / 2, titleY);
-  // 時間
-  ctx.fillStyle = L.time.color;
-  fitText(F.time || '0:00:00', { size: L.time.size, css: s => `900 ${s}px "Noto Sans TC"` }, W - 120);
-  ctx.fillText(F.time || '--:--:--', W / 2, F.sub ? L.time.y : L.time.y - 40);
+  const off = F.sub ? 0 : -40;
+  ctx.fillStyle = L.title.color; fitText(F.title, { size: L.title.size, css: s => `italic 800 ${s}px Barlow, "Noto Sans TC"` }, W - 140); ctx.fillText(F.title, W / 2, L.title.y + off);
+  ctx.fillStyle = L.time.color; fitText(F.time || '0:00:00', { size: L.time.size, css: s => `900 ${s}px "Noto Sans TC"` }, W - 120); ctx.fillText(F.time || '--:--:--', W / 2, L.time.y + off);
   noShadow();
-  // 線條＋星星
   ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 3;
   const ly = L.lines.y;
   ctx.beginPath(); ctx.moveTo(150, ly); ctx.lineTo(480, ly); ctx.moveTo(600, ly); ctx.lineTo(930, ly); ctx.stroke();
   sparkle(95, ly, 26); sparkle(985, ly, 26);
-  // 底部文字
-  ctx.font = `italic 800 ${L.foot.size}px Barlow, "Noto Sans TC"`; ctx.fillStyle = L.foot.color;
+  ctx.fillStyle = L.foot.color;
   ctx.textAlign = 'left'; fitText(F.event.toUpperCase(), { size: L.foot.size, css: s => `italic 800 ${s}px Barlow, "Noto Sans TC"` }, 420); ctx.fillText(F.event.toUpperCase(), 150, L.foot.y);
   ctx.textAlign = 'right'; fitText(F.tag, { size: L.foot.size + 6, css: s => `700 ${s}px "Barlow Condensed", "Noto Sans TC"` }, 420); ctx.fillText(F.tag, 930, L.foot.y);
   ctx.textAlign = 'center';
 }
-function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; }
-
-// 字型載入完再畫（中文字型依字分批下載，所以每次文字變更都要載）
 let fontReq = 0;
 async function redraw() {
-  const id = ++fontReq;
-  const txt = [F.name, F.bib, F.sub, F.title, F.time, F.team, F.event, F.tag, '先選一張照片0123456789:'].join('');
-  try {
-    await Promise.all([
-      document.fonts.load('900 100px "Noto Sans TC"', txt), document.fonts.load('700 100px "Noto Sans TC"', txt),
-      document.fonts.load('italic 800 60px Barlow', 'A'), document.fonts.load('700 60px "Barlow Condensed"', 'A'),
-    ]);
-  } catch { }
+  const id = ++fontReq, txt = [F.name, F.bib, F.sub, F.title, F.time, F.team, F.event, F.tag, '0123456789:'].join('');
+  try { await Promise.all([document.fonts.load('900 100px "Noto Sans TC"', txt), document.fonts.load('italic 800 60px Barlow', 'A'), document.fonts.load('700 60px "Barlow Condensed"', 'A')]); } catch { }
   if (id === fontReq) draw();
 }
 
 // ---------- 表單 ----------
 function readForm() {
   F.name = $('#in-name').value.trim(); F.bib = $('#in-bib').value.trim(); F.sub = $('#in-sub').value.trim();
-  F.title = sel.value === '__custom' ? $('#in-title-custom').value.trim() : sel.value;
+  const sel = $('#titles [aria-pressed=true]')?.dataset.title;
+  F.title = sel === '__custom' ? ($('#in-title-custom').value.trim() || ' ') : (sel || TITLES[0]);
   F.team = $('#in-team').value.trim(); F.event = $('#in-event').value.trim(); F.tag = $('#in-tag').value.trim();
   F.theme = document.querySelector('input[name=theme]:checked')?.value || 'red';
-  const t = $('#in-time').value.trim(), s = parseHMS(t);
-  F.time = s ? fmtHMS(s) : t;
+  const t = $('#in-time').value.trim(), s = parseHMS(t); F.time = s ? fmtHMS(s) : t;
   ls.set('card', { name: F.name, bib: F.bib, sub: F.sub, title: F.title, team: F.team, event: F.event, tag: F.tag, theme: F.theme, time: F.time });
 }
-document.querySelector('.wrap').addEventListener('input', ev => {
-  if (ev.target.id === 'in-photo' || ev.target.id === 'in-zoom') return;
-  if (ev.target === sel) $('#in-title-custom').hidden = sel.value !== '__custom';
-  readForm(); redraw();
+document.querySelector('.cwrap').addEventListener('input', ev => {
+  if (['in-photo', 'in-photo2', 'in-zoom'].includes(ev.target.id)) return;
+  readForm(); if (ev.target.id === 'in-time') setSrc(); redraw();
 });
-sel.addEventListener('change', () => { $('#in-title-custom').hidden = sel.value !== '__custom'; readForm(); redraw(); });
+$('#titles').onclick = ev => {
+  const b = ev.target.closest('[data-title]'); if (!b) return;
+  $('#titles').querySelectorAll('[data-title]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#in-title-custom').hidden = b.dataset.title !== '__custom'; if (b.dataset.title === '__custom') $('#in-title-custom').focus();
+  readForm(); redraw();
+};
 $('#in-time').addEventListener('change', () => {
   const s = parseHMS($('#in-time').value);
   if (!s && $('#in-time').value.trim()) return toast('時間格式像 4:12:33');
-  if (s) { $('#in-time').value = fmtHMS(s); $('#time-src').textContent = '已改成你輸入的時間。'; }
-  readForm(); redraw();
+  if (s) $('#in-time').value = fmtHMS(s);
+  readForm(); setSrc(); redraw();
 });
 $('#btn-sync').onclick = async () => {
   const s = parseHMS($('#in-time').value); if (!s) return toast('先填完賽時間，格式像 4:12:33');
-  try { const m = await rpc('runlive_update', { p_token: token, p_patch: { finish_sec: s } }); ls.set('me', m); toast(`已更新正式成績 ${fmtHMS(s)}，名單也會顯示`); }
-  catch (e) { toast(e.message === 'bad_token' ? '登入失效，請回地圖頁重新登入' : '更新失敗，稍後再試'); }
+  try { me = await rpc('runlive_update', { p_token: token, p_patch: { finish_sec: s } }); ls.set('me', me); setSrc(); toast(`已存成正式成績 ${fmtHMS(s)}，名單也會更新`); }
+  catch (e) { toast(e.code === 'bad_token' ? '登入失效，請回地圖頁重新登入' : '儲存失敗，稍後再試'); }
 };
 
 // ---------- 輸出 ----------
 $('#btn-save').onclick = async () => {
-  if (!photo.img) return toast('先選一張照片');
+  if (!photo.img) { toast('先選一張照片'); $('#in-photo').click(); return; }
+  if (!parseHMS($('#in-time').value)) { toast('先填完賽時間'); $('#in-time').focus(); return; }
   readForm(); await redraw();
   const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .92));
-  const name = `finisher_${(F.bib || 'card')}.jpg`;
-  const file = new File([blob], name, { type: 'image/jpeg' });
+  const name = `finisher_${F.bib || 'card'}.jpg`, file = new File([blob], name, { type: 'image/jpeg' });
   if (navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
@@ -349,7 +328,6 @@ $('#btn-save').onclick = async () => {
   $('#dlg-img').src = url; $('#dlg').showModal();
 };
 $('#dlg-close').onclick = () => $('#dlg').close();
-
 readForm(); redraw();
 </script>
 </body>

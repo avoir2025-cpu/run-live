@@ -49,6 +49,28 @@ export function project(rt, la, lo, dExp, acc = 20) {
   return best ? { d: best.d, e: best.e } : { d: null, e: nearest };
 }
 
+// 某個地點在路線上的所有經過里程（折返路段會有去程、回程兩個）
+export function passesAt(rt, la, lo, lim = 150) {
+  const px = (lo - rt.lo0) * rt.kx, py = (la - rt.la0) * rt.ky;
+  const hits = [];
+  for (let i = 0; i < rt.xy.length - 1; i++) {
+    const [ax, ay] = rt.xy[i], [bx, by] = rt.xy[i + 1];
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const e = Math.hypot(ax + t * dx - px, ay + t * dy - py);
+    if (e <= lim) hits.push({ d: rt.cum[i] + t * (rt.cum[i + 1] - rt.cum[i]), e });
+  }
+  hits.sort((a, b) => a.d - b.d);
+  const out = [];
+  for (const h of hits) {
+    const last = out[out.length - 1];
+    if (last && h.d - last.d < 800) { if (h.e < last.e) Object.assign(last, h); }
+    else out.push({ ...h });
+  }
+  return out.map(h => h.d);
+}
+
 export function pointAt(rt, d) {
   d = Math.max(0, Math.min(rt.len, d));
   let lo = 0, hi = rt.cum.length - 1;
