@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="theme-color" content="#b3122a">
+<title>跑團 Live｜台中馬 2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w==" crossorigin="anonymous">
+<style>
+[hidden]{display:none!important}
+:root{
+  --red:#b3122a; --red2:#d62839; --ink:#1b1d22; --mute:#6b7280; --line:#e5e7eb; --bg:#f6f6f4; --card:#fff;
+  --ok:#16a34a; --warn:#d97706; --target:44px;
+  --nav-h:60px;
+  color-scheme:light;
+  font-family:system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow-wrap:break-word}
+body{font-size:16px;line-height:1.5}
+button,input,select{font:inherit}
+button{cursor:pointer}
+:where(button,select,input:not([type=checkbox],[type=radio])){min-block-size:var(--target)}
+h1,h2,h3{text-wrap:balance;margin:0}
+
+/* 頂部 */
+.top{position:fixed;inset:0 0 auto 0;z-index:1000;display:flex;align-items:center;gap:8px;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));
+  background:linear-gradient(#fff,#fffffff2);border-bottom:1px solid var(--line)}
+.top h1{font-size:17px;font-weight:800;letter-spacing:.02em;flex:1;min-inline-size:0}
+.top h1 small{display:block;font-size:12px;font-weight:500;color:var(--mute)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--mute);white-space:nowrap}
+.dot{inline-size:9px;block-size:9px;border-radius:50%;background:#9ca3af}
+.dot.on{background:var(--ok);box-shadow:0 0 0 4px #16a34a33}
+.dot.off{background:#ef4444}
+
+/* 篩選 */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:0 14px;font-size:14px;color:var(--ink)}
+.chip[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* 主區 */
+main{position:fixed;inset:0;padding-top:calc(env(safe-area-inset-top,0px) + 62px);padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px))}
+.view{position:absolute;inset:inherit;inset:calc(env(safe-area-inset-top,0px) + 62px) 0 calc(var(--nav-h) + env(safe-area-inset-bottom,0px)) 0;overflow:auto}
+#view-map{overflow:hidden}
+#map{position:absolute;inset:0}
+.map-tools{position:absolute;z-index:500;inset:10px 10px auto 10px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+.map-tools .chip{box-shadow:0 1px 6px #0002}
+#map .leaflet-tile-pane{filter:saturate(.75) brightness(1.03)}
+.map-tools>*{pointer-events:auto}
+.map-btns{display:flex;flex-direction:column;gap:8px}
+.fab{min-inline-size:var(--target);border:0;border-radius:12px;background:#fff;box-shadow:0 2px 8px #0002;font-weight:700;padding:0 12px}
+.legend{position:absolute;z-index:500;left:10px;bottom:10px;background:#fffffff0;border-radius:10px;padding:6px 10px;font-size:12px;color:var(--mute);box-shadow:0 1px 6px #0002}
+
+/* 跑者圖釘 */
+.pin{transform:translate(-50%,-100%);display:inline-flex;flex-direction:column;align-items:center;white-space:nowrap}
+.pin b{background:var(--c);color:#fff;font-size:12px;padding:2px 7px;border-radius:8px;box-shadow:0 1px 4px #0004;max-inline-size:110px;overflow:hidden;text-overflow:ellipsis}
+.pin i{inline-size:12px;block-size:12px;border-radius:50%;background:var(--c);border:2px solid #fff;margin-top:2px;box-shadow:0 0 0 2px var(--c)}
+.pin.est b{background:#fff;color:var(--c);border:1.5px dashed var(--c)}
+.pin.est i{background:#fff}
+.pin.me b{outline:2px solid #111}
+.pin.done b::before{content:"🏁 "}
+.km,.sf{white-space:nowrap}
+.km{font-size:10px;font-weight:700;color:#444;background:#ffffffd0;border-radius:4px;padding:0 3px;transform:translate(-50%,-50%);display:inline-block}
+.sf{font-size:11px;font-weight:800;color:#fff;background:#111;border-radius:6px;padding:2px 6px;transform:translate(-50%,-50%);display:inline-block}
+.pop b{font-size:15px}
+.pop .g{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px;margin-top:6px}
+.pop .g span:nth-child(odd){color:var(--mute)}
+
+/* 名單 */
+.pad{padding:14px max(14px,env(safe-area-inset-right,0px)) 24px max(14px,env(safe-area-inset-left,0px));max-inline-size:720px;margin-inline:auto}
+.bar-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.bar-row label{font-size:14px;color:var(--mute)}
+select,input[type=text],input[type=password],input[type=date],input[type=time],input[type=number]{border:1px solid #d1d5db;border-radius:10px;padding:0 12px;background:#fff;min-inline-size:0}
+.group-h{font-size:14px;color:var(--mute);margin:18px 0 6px;font-weight:700}
+.runner{display:block;inline-size:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px;color:inherit}
+.runner .r1{display:flex;align-items:baseline;gap:8px}
+.runner .r1 b{font-size:16px}
+.runner .r1 .bib{font-size:12px;color:var(--mute)}
+.runner .r1 .st{margin-left:auto;font-size:12px;border-radius:999px;padding:1px 8px;background:#f3f4f6;white-space:nowrap}
+.st.running{background:#dcfce7;color:#166534}.st.stale,.st.nofix{background:#fef3c7;color:#92400e}.st.finished{background:#111;color:#fff}
+.prog{block-size:6px;background:#eee;border-radius:3px;margin:8px 0 6px;overflow:hidden}
+.prog i{display:block;block-size:100%;background:var(--c)}
+.runner .r3{font-size:14px}
+.runner .r4{font-size:12px;color:var(--mute)}
+.cheer{font-size:13px;margin-top:4px;color:var(--red);font-weight:700}
+.empty{color:var(--mute);text-align:center;padding:40px 10px}
+
+/* 我 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+.card h2{font-size:17px;margin-bottom:8px}
+.card p{margin:.4em 0;color:#374151;font-size:14px;text-wrap:pretty}
+.field{display:flex;flex-direction:column;gap:4px;margin:10px 0}
+.field label{font-size:14px;font-weight:600}
+.field .hint{font-size:12px;color:var(--mute)}
+.row2{display:flex;gap:8px}.row2>*{flex:1;min-inline-size:0}
+.pw>.btn{flex:0 0 auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.grid2 input{inline-size:100%}
+.pw{display:flex;gap:6px}.pw input{flex:1}
+.btn{border:0;border-radius:12px;padding:0 16px;font-weight:700;background:#eef0f3;color:var(--ink)}
+.btn.primary{background:var(--red);color:#fff}
+.btn.dark{background:var(--ink);color:#fff}
+.btn.ghost{background:transparent;border:1px solid #d1d5db}
+.btn.danger{background:#fee2e2;color:#991b1b}
+.btn.block{inline-size:100%}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.big-toggle{display:flex;align-items:center;gap:12px}
+.big-toggle .btn{flex:1;min-block-size:52px;font-size:17px}
+.status-line{font-size:13px;color:var(--mute);margin-top:8px}
+.warnbox{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:10px 12px;font-size:13px;color:#7c2d12;margin-top:10px}
+details.admin summary{cursor:pointer;color:var(--mute);font-size:14px;min-block-size:var(--target);display:flex;align-items:center}
+.adm-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-top:1px solid var(--line);padding:8px 0;font-size:14px}
+.adm-row span{flex:1;min-inline-size:120px}
+.gate{max-inline-size:440px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 40px) 18px 40px}
+.gate h1{font-size:26px;margin-bottom:4px}
+.gate .sub{color:var(--mute);margin-bottom:20px}
+
+/* 底部導覽 */
+nav.tabs{position:fixed;inset:auto 0 0 0;z-index:1000;display:flex;background:#fff;border-top:1px solid var(--line);
+  padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+nav.tabs button,nav.tabs a{flex:1;block-size:var(--nav-h);border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--mute);text-decoration:none}
+nav.tabs .ico{font-size:20px;line-height:1}
+nav.tabs [aria-current=page]{color:var(--red);font-weight:700}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 14px);z-index:3000;background:#111;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;max-inline-size:90vw;box-shadow:0 4px 16px #0004}
+dialog{border:0;border-radius:16px;padding:20px;max-inline-size:min(92vw,400px);box-shadow:0 10px 40px #0005}
+dialog::backdrop{background:#0006}
+dialog p{margin:0 0 16px}
+</style>
+</head>
+<body>
+
+<section id="gate" class="gate" hidden>
+  <h1>跑團 Live</h1>
+  <p class="sub" id="gate-sub">2026 麗晨臺中國際馬拉松</p>
+  <form id="gate-form" class="card">
+    <div class="field">
+      <label for="gate-code">團體代碼</label>
+      <input id="gate-code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+      <span class="hint">代碼在跑團群組裡，輸入一次就會記住。</span>
+    </div>
+    <button class="btn primary block" type="submit">進入</button>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header class="top">
+    <h1><span id="team-name">跑團 Live</span><small id="clock-line">—</small></h1>
+    <span class="live"><span class="dot" id="net-dot"></span><span id="net-text">連線中</span></span>
+  </header>
+
+  <main>
+    <section id="view-map" class="view">
+      <div id="map" role="region" aria-label="跑者地圖"></div>
+      <div class="map-tools">
+        <div class="chips" data-filter></div>
+        <div class="map-btns">
+          <button class="fab" id="btn-fit" type="button">全部</button>
+          <button class="fab" id="btn-me" type="button">我</button>
+        </div>
+      </div>
+      <div class="legend">實心＝剛定位　虛線＝依配速推算</div>
+    </section>
+
+    <section id="view-list" class="view" hidden>
+      <div class="pad">
+        <div class="chips" data-filter style="margin-bottom:10px"></div>
+        <div class="bar-row">
+          <label for="cheer">加油點</label>
+          <select id="cheer"></select>
+          <input id="cheer-km" type="number" inputmode="decimal" min="0" max="42.2" step="0.1" placeholder="公里" hidden style="inline-size:90px">
+        </div>
+        <div id="list"></div>
+      </div>
+    </section>
+
+    <section id="view-me" class="view" hidden>
+      <div class="pad" id="me"></div>
+    </section>
+  </main>
+
+  <nav class="tabs" aria-label="主選單">
+    <button type="button" data-tab="map" aria-current="page"><span class="ico" aria-hidden="true">🗺️</span>地圖</button>
+    <button type="button" data-tab="list"><span class="ico" aria-hidden="true">📋</span>名單</button>
+    <button type="button" data-tab="me"><span class="ico" aria-hidden="true">🏃</span>我</button>
+    <a id="tab-card" href="card.html"><span class="ico" aria-hidden="true">🖼️</span>完賽圖卡</a>
+  </nav>
+</div>
+
+<dialog id="dlg">
+  <p id="dlg-msg"></p>
+  <div class="btns" style="justify-content:flex-end">
+    <button class="btn ghost" id="dlg-no" type="button">取消</button>
+    <button class="btn danger" id="dlg-yes" type="button">確定</button>
+  </div>
+</dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg==" crossorigin="anonymous"></script>
+<script type="module" src="app.js?v=2"></script>
+</body>
+</html>
