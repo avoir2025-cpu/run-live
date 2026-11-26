@@ -118,7 +118,8 @@ export function analyze(runner, pts, config, now) {
   const cat = runner.cat, C = CAT[cat];
   const gun = gunTime(config, cat);
   const start = runner.start_at ? Date.parse(runner.start_at) : gun;
-  const targetPace = runner.target_sec ? runner.target_sec / C.len : C.pace;
+  // 目標時間已經包含 30K 後的掉速，換算配速時要先扣掉，否則預估完賽會比目標晚（全馬 4:00 會變 4:02:46）
+  const targetPace = runner.target_sec ? runner.target_sec / secsBetween(cat, 1, 0, C.len) : C.pace;
   const useRoute = config?.useRoute !== false;
   const rt = useRoute ? routeOf(cat) : null;
   const last = pts[pts.length - 1] || null;
