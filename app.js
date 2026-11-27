@@ -1,5 +1,6 @@
 import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput, limitOf } from './calc.js?v=10';
 import { SB_URL, SB_KEY } from './config.js';
+import { lineOn, lineToken, resumeLine, lineCall, tokenFresh } from './line.js?v=1';
 
 // ---------- 基本 ----------
 const qs = new URLSearchParams(location.search);
@@ -151,7 +152,9 @@ async function boot() {
     rpc('runlive_me', { p_token: S.token }).then(me => { S.me = me; store.set('me', me); renderAll(); })
       .catch(e => { if (e.code === 'bad_token') { logoutLocal(); toast('這支手機已登出（可能在別支手機登入過）'); } });
   }
-  if (S.me || S.watcher) showApp(); else showOnboard('role');
+  const lr = lineOn() ? await resumeLine(TEAM) : null;
+  if (lr) await onLine(lr);
+  else if (S.me || S.watcher) showApp(); else showOnboard('role');
   if (store.get('sharing') && S.token) startShare(true);
   if (store.get('wake')) setWake(true);
 }
@@ -177,7 +180,41 @@ function showGate(msg) {
 }
 
 // ---------- 新手流程 ----------
-const J = { cat: null, nick: '', bib: '', target: null, pick: null };
+const J = { cat: null, nick: '', bib: '', target: null, pick: null, line: null };
+
+// ---------- 用 LINE 登入／綁定 ----------
+// from：join（加入第一步按的）／login（換手機畫面按的）／bind（我頁按的）
+async function lineGo(from) {
+  if (from === 'join') saveJ1Now();
+  const extra = { from, J: from === 'join' ? { cat: J.cat, nick: J.nick, bib: J.bib } : null };
+  try { const t = await lineToken(from, TEAM, extra); await onLine({ intent: from, extra, idToken: t }); }
+  catch (e) { toast(e.message); }
+}
+async function onLine(p) {
+  const from = p.extra?.from || p.intent;
+  if (p.extra?.J) Object.assign(J, p.extra.J);
+  const fallback = () => from === 'bind' ? (showApp(), setTab('me')) : S.me ? showApp() : showOnboard(from === 'login' ? 'login' : from === 'join' ? 'join1' : 'role');
+  if (p.error) { toast(p.error); return fallback(); }
+  try {
+    if (from === 'bind') {
+      await lineCall('bind', { id_token: p.idToken, token: S.token });
+      S.me = { ...S.me, line: true }; store.set('me', S.me); toast('已綁定 LINE，換手機直接用 LINE 登入');
+      showApp(); setTab('me'); return;
+    }
+    const res = await lineCall('login', { id_token: p.idToken, team: TEAM, code: S.code });
+    if (res.bound) {
+      const { bound, ...rest } = res; setLogin(rest); toast(`歡迎回來，${res.nick}`);
+      await poll(true).catch(() => { }); return showApp();
+    }
+    if (from === 'login') { toast('這個 LINE 還沒綁定。請點你的名字用 PIN 登入，之後到「我」綁定 LINE'); return showOnboard('login'); }
+    J.line = p.idToken;
+    if (!J.nick) J.nick = res.nick || res.name || '';
+    toast(res.nick ? `已連結 LINE，暱稱沿用「${res.nick}」` : '已連結 LINE，選組別就能加入');
+    showOnboard('join1');
+  } catch (e) { toast(e.message); fallback(); }
+}
+function saveJ1Now() { const n = $('#o-nick'), b = $('#o-bib'); if (n) J.nick = n.value.trim(); if (b) J.bib = b.value.trim(); }
+const lineBtn = (from, label) => lineOn() ? `<button type="button" class="btn line block lg" data-line="${from}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5s5.9-3.5 8.1-6C21.4 14.3 22 12.7 22 11c0-4.4-4.5-8-10-8z"/></svg>${label}</button>` : '';
 const TARGETS = {
   full: ['3:30', '4:00', '4:30', '5:00', '5:30', '6:00'], half: ['1:45', '2:00', '2:15', '2:30', '2:45', '3:00'],
   '12k': ['1:00', '1:10', '1:20', '1:30', '1:45', '2:00'],
@@ -198,17 +235,18 @@ function showOnboard(step) {
       <p style="text-align:center;margin-top:18px;color:var(--mute)">已經加入過了？<button type="button" class="linkbtn" data-go="login">換手機登入</button></p>`;
   } else if (step === 'join1') {
     h = `${top('role', 1)}<h1>加入跑團地圖</h1><p class="lead">地圖和名單上會顯示你的暱稱。</p>
+      ${J.line ? '<p class="line-ok">✓ 已連結 LINE，換手機直接用 LINE 登入，不用設 PIN</p>' : lineOn() ? `${lineBtn('join', '用 LINE 加入（換手機免 PIN）')}<p class="or"><span>或直接填</span></p>` : ''}
       <div class="field"><span class="lbl">組別</span><div class="opts" id="o-cat">${offered().map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${J.cat === k}">${c.name}<small>${+(c.len / 1000).toFixed(1)} km</small></button>`).join('')}</div></div>
       <div class="field"><label for="o-nick">暱稱</label><input id="o-nick" type="text" maxlength="12" autocomplete="nickname" enterkeyhint="next" value="${esc(J.nick)}"></div>
       <div class="field"><label for="o-bib">號碼布（選填）</label><input id="o-bib" type="text" inputmode="numeric" maxlength="8" enterkeyhint="done" value="${esc(J.bib)}"><span class="hint">大會物資約賽前一週寄到，收到再補也可以。</span></div>
       <button type="button" class="btn primary block lg" id="o-next">下一步</button>`;
   } else if (step === 'join2') {
     const list = TARGETS[J.cat] || [];
-    h = `${top('join1', 2)}<h1>目標時間和 PIN</h1><p class="lead">還沒有定位時，會用目標配速推算你的位置。</p>
+    h = `${top('join1', 2)}<h1>${J.line ? '目標時間' : '目標時間和 PIN'}</h1><p class="lead">還沒有定位時，會用目標配速推算你的位置。</p>
       <div class="field"><span class="lbl">目標完賽時間</span><div class="opts" id="o-tgt">${list.map(t => `<button type="button" class="opt" data-t="${t}" aria-pressed="${J.pick === t}"><span class="num">${t}</span></button>`).join('')}
 </div><div class="opts" style="grid-template-columns:1fr 1fr;margin-top:8px"><button type="button" class="opt" data-t="none" aria-pressed="${J.pick === 'none'}">還不確定</button><button type="button" class="opt" data-t="custom" aria-pressed="${J.pick === 'custom'}">自己填</button></div>
         <input id="o-tgt-c" type="text" inputmode="numeric" placeholder="0:00" ${J.pick === 'custom' ? '' : 'hidden'}><span class="hint" ${J.pick === 'custom' ? '' : 'hidden'} id="o-tgt-h">直接打數字，例如 4 小時 15 分打 415</span></div>
-      ${pinField('o-pin', '設一組 4 位數 PIN', '換手機時，點你的名字再輸入 PIN 就能登入。')}
+      ${J.line ? '' : pinField('o-pin', '設一組 4 位數 PIN', '換手機時，點你的名字再輸入 PIN 就能登入。')}
       <button type="button" class="btn primary block lg" id="o-done">完成加入</button>`;
   } else if (step === 'done') {
     h = `<div class="ob-top"></div><div class="done-hero"><div class="big">🎉</div><h1 style="margin-top:12px">${esc(S.me?.nick)}，加入完成！</h1></div>
@@ -224,6 +262,7 @@ function showOnboard(step) {
   } else if (step === 'login') {
     const rs = [...S.runners].sort((a, b) => a.nick.localeCompare(b.nick, 'zh-Hant'));
     h = `${top('role')}<h1>點你的名字</h1><p class="lead">接著輸入你加入時設的 PIN。</p>
+      ${lineOn() ? `${lineBtn('login', '綁過 LINE？用 LINE 登入')}<p class="or"><span>或點名字</span></p>` : ''}
       <input id="o-q" type="search" placeholder="搜尋暱稱或號碼" aria-label="搜尋">
       <div class="namegrid" id="o-names">${rs.map(r => `<button type="button" data-rid="${r.id}" data-q="${esc((r.nick + ' ' + (r.bib || '')).toLowerCase())}">${esc(r.nick)}<small>${catName(r.cat)}${r.bib ? '・' + esc(r.bib) : ''}</small></button>`).join('') || '<p class="note">還沒有人加入</p>'}</div>`;
   } else if (step.startsWith('pin:')) {
@@ -238,6 +277,8 @@ function showOnboard(step) {
 function bindOnboard(step) {
   const el = $('#onboard');
   el.onclick = async ev => {
+    const ln = ev.target.closest('[data-line]');
+    if (ln) return lineGo(ln.dataset.line);
     const go = ev.target.closest('[data-go]');
     if (go) {
       const g = go.dataset.go;
@@ -271,12 +312,21 @@ function bindOnboard(step) {
       let target = null;
       if (J.pick === 'custom') { target = parseHMS($('#o-tgt-c').value); if (!target) return toast('先填目標時間，分鐘不能超過 59'); }
       else if (J.pick && J.pick !== 'none') target = parseHMS(J.pick);
-      const pin = $('#o-pin').value.trim();
+      // 用 LINE 加入：PIN 自動產生（備援用，LINE 綁定失敗才會告訴本人）
+      const pin = J.line ? String(crypto.getRandomValues(new Uint16Array(1))[0] % 10000).padStart(4, '0') : $('#o-pin').value.trim();
       if (!/^\d{4}$/.test(pin)) { $('#o-pin').focus(); return toast(ERR.bad_pin); }
       $('#o-done').disabled = true;
       try {
         const res = await rpc('runlive_join', { p_team: TEAM, p_code: S.code, p_bib: J.bib || null, p_nick: J.nick, p_cat: J.cat, p_target_sec: target, p_pin: pin });
-        setLogin(res); await poll(true).catch(() => { }); showOnboard('done');
+        setLogin(res);
+        let linePinMsg = '';
+        if (J.line) {
+          try { if (!tokenFresh(J.line)) throw new Error('expired'); await lineCall('bind', { id_token: J.line, token: res.token }); S.me = { ...S.me, line: true }; store.set('me', S.me); }
+          catch { linePinMsg = pin; }
+          J.line = null;
+        }
+        await poll(true).catch(() => { }); showOnboard('done');
+        if (linePinMsg) openSheet('LINE 綁定沒成功', `<p>你已經加入了，但 LINE 沒綁上。換手機時請點你的名字，輸入這組 PIN：</p><p class="num" style="font-size:40px;text-align:center;letter-spacing:.2em;margin:12px 0">${linePinMsg}</p><p class="note">也可以到「我」重新綁定 LINE。</p>`);
       } catch (e) { toast(e.message); $('#o-done').disabled = false; }
     };
   }
@@ -840,6 +890,8 @@ function renderMe() {
     </div>
     <div class="sec"><h3>我的資料</h3>
       <button type="button" class="item" id="it-edit"><div class="grow"><b>暱稱、組別、號碼布、目標</b><span>${esc(m.nick)}・${catName(m.cat)}${m.bib ? `・#${esc(m.bib)}` : ''}</span></div>${ICON.chev}</button>
+      ${m.line ? '<div class="item"><div class="grow"><b>LINE 已綁定</b><span>換手機時用 LINE 登入就好</span></div><span class="val" style="color:#06c755">✓</span></div>'
+        : lineOn() ? `<button type="button" class="item" id="it-line"><div class="grow"><b>綁定 LINE</b><span>換手機直接用 LINE 登入，不用記 PIN</span></div>${ICON.chev}</button>` : ''}
       <button type="button" class="item" id="it-pin"><div class="grow"><b>改 PIN</b><span>換手機登入用</span></div>${ICON.chev}</button>
     </div>
     <div class="sec">
@@ -855,7 +907,8 @@ function renderMe() {
   $('#it-pin').onclick = () => openSheet('改 PIN', `${pinField('s-pin', '新的 4 位數 PIN', '')}<button type="button" class="btn primary block lg" id="s-ok">更新</button>`, b => {
     $('#s-ok').onclick = async () => { const p = $('#s-pin').value.trim(); if (!/^\d{4}$/.test(p)) return toast(ERR.bad_pin); if (await update({ pin: p }, 'PIN 已更新')) closeSheet(); };
   });
-  $('#it-logout').onclick = async () => { if (await confirmBox('登出後，要點你的名字、輸入 PIN 才能登入回來。', '登出')) { logoutLocal(); S.watcher = true; store.set('watcher', true); renderAll(); } };
+  if ($('#it-line')) $('#it-line').onclick = () => lineGo('bind');
+  $('#it-logout').onclick = async () => { if (await confirmBox(m.line ? '登出後，用 LINE 登入就能回來。' : '登出後，要點你的名字、輸入 PIN 才能登入回來。', '登出')) { logoutLocal(); S.watcher = true; store.set('watcher', true); renderAll(); } };
   $('#it-del').onclick = async () => {
     if (!await confirmBox('會刪除你的暱稱和所有定位紀錄，無法復原。', '刪除')) return;
     try { await rpc('runlive_delete_me', { p_token: S.token }); logoutLocal(); await poll(true); toast('已刪除你的資料'); showOnboard('role'); } catch (e) { toast(e.message); }
