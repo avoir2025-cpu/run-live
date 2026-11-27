@@ -1,4 +1,4 @@
-import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput } from './calc.js?v=9';
+import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput, limitOf } from './calc.js?v=10';
 import { SB_URL, SB_KEY } from './config.js';
 
 // ---------- 基本 ----------
@@ -19,7 +19,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const initial = s => { const a = Array.from(String(s || '?').trim()); const c = a[0] || '?'; if (c.charCodeAt(0) < 128) return c.toUpperCase(); return a.length >= 3 ? a.slice(-2).join('') : a.join(''); };
 const catName = c => CAT[c]?.name || c;
-const catVar = c => ({ full: '--full', half: '--half', '10k': '--k10', '5k': '--k5' }[c]);
+const catVar = c => ({ full: '--full', half: '--half', '12k': '--k12', '10k': '--k10', '5k': '--k5', '3k5': '--k35', '3k': '--k3' }[c] || '--k5');
 const cvar = c => `var(${catVar(c)})`;
 const hm = s => s ? `${Math.floor(s / 3600)}:${String(Math.round(s % 3600 / 60)).padStart(2, '0')}` : '';
 const ICON = {
@@ -103,7 +103,7 @@ const pinField = (id, label, hint, ac = 'new-password') => `<div class="field"><
 // 比賽階段
 function phase(cat) {
   const cfg = S.team?.config; if (!cfg) return 'pre';
-  const gun = gunTime(cfg, cat), now = Date.now(), lim = CAT[cat].limit * 1000;
+  const gun = gunTime(cfg, cat), now = Date.now(), lim = limitOf(cfg, cat) * 1000;
   if (now < gun - 90 * 60e3) return 'pre';
   if (now <= gun + lim + 60 * 60e3) return 'race';
   return 'post';
@@ -180,7 +180,9 @@ function showGate(msg) {
 const J = { cat: null, nick: '', bib: '', target: null, pick: null };
 const TARGETS = {
   full: ['3:30', '4:00', '4:30', '5:00', '5:30', '6:00'], half: ['1:45', '2:00', '2:15', '2:30', '2:45', '3:00'],
+  '12k': ['1:00', '1:10', '1:20', '1:30', '1:45', '2:00'],
   '10k': ['0:50', '1:00', '1:10', '1:20', '1:30', '1:45'], '5k': ['0:25', '0:30', '0:35', '0:40', '0:50', '1:00'],
+  '3k5': ['0:20', '0:25', '0:30', '0:35', '0:45', '0:55'], '3k': ['0:15', '0:18', '0:20', '0:25', '0:30', '0:40'],
 };
 function showOnboard(step) {
   $('#boot').hidden = true;
@@ -196,7 +198,7 @@ function showOnboard(step) {
       <p style="text-align:center;margin-top:18px;color:var(--mute)">已經加入過了？<button type="button" class="linkbtn" data-go="login">換手機登入</button></p>`;
   } else if (step === 'join1') {
     h = `${top('role', 1)}<h1>加入跑團地圖</h1><p class="lead">地圖和名單上會顯示你的暱稱。</p>
-      <div class="field"><span class="lbl">組別</span><div class="opts" id="o-cat">${offered().map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${J.cat === k}">${c.name}<small>${(c.len / 1000).toFixed(k === 'half' ? 1 : 0)} km</small></button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">組別</span><div class="opts" id="o-cat">${offered().map(([k, c]) => `<button type="button" class="opt" data-cat="${k}" aria-pressed="${J.cat === k}">${c.name}<small>${+(c.len / 1000).toFixed(1)} km</small></button>`).join('')}</div></div>
       <div class="field"><label for="o-nick">暱稱</label><input id="o-nick" type="text" maxlength="12" autocomplete="nickname" enterkeyhint="next" value="${esc(J.nick)}"></div>
       <div class="field"><label for="o-bib">號碼布（選填）</label><input id="o-bib" type="text" inputmode="numeric" maxlength="8" enterkeyhint="done" value="${esc(J.bib)}"><span class="hint">大會物資約賽前一週寄到，收到再補也可以。</span></div>
       <button type="button" class="btn primary block lg" id="o-next">下一步</button>`;
@@ -384,13 +386,16 @@ function renderAll() {
 }
 function renderTop() {
   const cfg = S.team?.config; if (!cfg) return;
-  const gun = gunTime(cfg, 'full'), now = Date.now(), el = $('#race-clock');
-  const endT = gunTime(cfg, 'full') + CAT.full.limit * 1000;
+  // 倒數看這場最早鳴槍的組別（台中都會半馬、台南古都沒有全馬）
+  const cats = offered().map(([k]) => k).sort((a, b) => gunTime(cfg, a) - gunTime(cfg, b));
+  const c0 = cats[0] || 'full', now = Date.now(), el = $('#race-clock');
+  const gun = gunTime(cfg, c0);
+  const endT = Math.max(...(cats.length ? cats : ['full']).map(c => gunTime(cfg, c) + limitOf(cfg, c) * 1000));
   let h;
   if (now < gun) {
     const s = (gun - now) / 1000, d = Math.floor(s / 86400);
     h = d >= 1 ? `<small>距離起跑</small><b>${d} 天 ${Math.floor(s % 86400 / 3600)} 小時</b>` : `<small>距離起跑</small><b>${fmtHMS(s)}</b>`;
-  } else if (now < endT + 30 * 60e3) h = `<small>全馬鳴槍後</small><b>${fmtHMS((now - gun) / 1000)}</b>`;
+  } else if (now < endT + 30 * 60e3) h = `<small>${esc(catName(c0))}鳴槍後</small><b>${fmtHMS((now - gun) / 1000)}</b>`;
   else h = `<small>${esc(cfg.date)}</small><b>比賽結束</b>`;
   if (el.innerHTML !== h) el.innerHTML = h;
   const n = $('#net'), on = navigator.onLine && S.online;
@@ -489,7 +494,7 @@ const shown = r => S.filter === 'all' || (S.filter === 'fav' ? (S.follow.has(r.i
 // ---------- 地圖 ----------
 let map, routeLayers = {}, markers = new Map(), startMarker, cheerMarker;
 function initMap() {
-  map = L.map('map', { zoomControl: false, attributionControl: true }).setView([24.205, 120.665], 12);
+  map = L.map('map', { zoomControl: false, attributionControl: true }).setView(S.team?.config?.center || [24.205, 120.665], 12);
   map.attributionControl.setPrefix(false);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   for (const [cat, r] of Object.entries(ROUTES)) {
@@ -534,6 +539,7 @@ function fitAll() {
     const r = ROUTES[S.filter] || ROUTES.full || Object.values(ROUTES)[0];
     if (r) map.fitBounds(L.latLngBounds(r.pts), opt);
     else if (GEO.last) map.setView([GEO.last.la, GEO.last.lo], 14);
+    else if (S.team?.config?.center) map.setView(S.team.config.center, 14);
     else map.setView([23.75, 120.95], 8);
   }
 }

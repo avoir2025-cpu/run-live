@@ -6,11 +6,12 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#111214">
+<script>if (location.hostname.endsWith('github.io')) location.replace('https://booking.321avoir.com/cg/runlive/card.php' + location.search + location.hash);</script>
 <title>完賽圖卡｜跑團 LIVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:ital,wght@1,800&family=Noto+Sans+TC:wght@700;900&display=swap">
-<link rel="stylesheet" href="ui.css?v=9">
+<link rel="stylesheet" href="ui.css?v=10">
 <style>
 body{min-block-size:100dvh}
 .chead{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;background:var(--ink);color:#fff;
@@ -110,7 +111,7 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script type="module">
-import { CAT, analyze, loadRoutes, fmtHMS, parseHMS, bindTimeInput } from './calc.js?v=9';
+import { CAT, analyze, loadRoutes, fmtHMS, parseHMS, bindTimeInput } from './calc.js?v=10';
 import { SB_URL, SB_KEY } from './config.js';
 
 /* ====== 版型設定（拿到正式模板後只要改這一段） ======
@@ -148,11 +149,13 @@ const saved = ls.get('card') || {};
 let me = ls.get('me');
 let gcode = null; try { gcode = JSON.parse(localStorage.getItem('rl__code')); } catch { }
 const token = ls.get('token'), code = ls.get('code') || gcode;
-const titleByCat = { full: TITLES[0], half: TITLES[1], '10k': TITLES[2], '5k': TITLES[3] };
+const titleByCat = { full: TITLES[0], half: TITLES[1], '10k': TITLES[2], '5k': TITLES[3], '12k': '12K FINISHER', '3k5': '3.5K FINISHER', '3k': '3K FINISHER' };
+// 12K／3.5K／3K 的稱號放進可選清單第三格（不然會被當成自己打的字）
+if (me?.cat && titleByCat[me.cat] && !TITLES.includes(titleByCat[me.cat])) TITLES.splice(2, 0, titleByCat[me.cat]);
 const F = {
   name: saved.name ?? me?.nick ?? '', bib: saved.bib ?? me?.bib ?? '', sub: saved.sub ?? '',
   title: saved.title ?? titleByCat[me?.cat] ?? TITLES[0],
-  team: saved.team ?? 'RUN TOGETHER', event: saved.event ?? "TAICHUNG INT'L MARATHON 2026", tag: saved.tag ?? '#一起跑到終點',
+  team: saved.team ?? 'RUN TOGETHER', event: saved.event ?? (TEAM === 'tc2026' || TEAM === 'demo' ? "TAICHUNG INT'L MARATHON 2026" : ''), tag: saved.tag ?? '#一起跑到終點',
   theme: saved.theme ?? 'red', time: '',
 };
 for (const k of ['name', 'bib', 'sub', 'team', 'event', 'tag']) $(`#in-${k}`).value = F[k] || '';
@@ -176,6 +179,11 @@ function setTime(sec) { if (!sec) return; $('#in-time').value = fmtHMS(sec); rea
 if (me?.finish_sec) setTime(me.finish_sec);
 else if (saved.time) $('#in-time').value = saved.time;
 setSrc();
+// 圖卡上的英文賽名：每場在 config.en 設定，第一次開圖卡自動帶入（自己改過就不蓋）
+if (saved.event == null) rpc('runlive_events', {}).then(evs => {
+  const e = (evs || []).find(x => x.slug === TEAM);
+  if (e?.en && !$('#in-event').value) { $('#in-event').value = e.en; readForm(); redraw(); }
+}).catch(() => { });
 if (token) {
   rpc('runlive_me', { p_token: token }).then(async m => {
     me = m; ls.set('me', m);

@@ -3,10 +3,15 @@
 export const CAT = {
   full: { name: '全馬', len: 42195, pace: 0.39, color: '#d62839', limit: 6.5 * 3600 },
   half: { name: '半馬', len: 21097.5, pace: 0.36, color: '#1d6fd6', limit: 4 * 3600 },
+  '12k': { name: '12K', len: 12000, pace: 0.36, color: '#0891b2', limit: 2 * 3600 },
   '10k': { name: '10K', len: 10000, pace: 0.36, color: '#16a34a', limit: 2 * 3600 },
   '5k': { name: '5K', len: 5000, pace: 0.36, color: '#a855f7', limit: 1.5 * 3600 },
+  '3k5': { name: '3.5K', len: 3500, pace: 0.42, color: '#db2777', limit: 1 * 3600 },
+  '3k': { name: '3K', len: 3000, pace: 0.42, color: '#ea580c', limit: 1 * 3600 },
 };
 // pace 單位：秒/公尺（0.39 = 6:30/km）
+// 每場的關門時間不一樣（例如台北馬全馬 5.5 小時）：config.limits = { full: 19800 } 會蓋過預設
+export const limitOf = (config, cat) => +config?.limits?.[cat] || CAT[cat]?.limit || 6.5 * 3600;
 
 const R = 6371000;
 export function hav(a1, o1, a2, o2) {
@@ -179,7 +184,9 @@ function analyzeFree(runner, pts, config, now, out) {
   // 起終點同一處（例如 10K/5K 折返）：離開 800 公尺以上又回到終點 150 公尺內，就算抵達。
   // 手機鎖螢幕時點很稀疏，直線累加會把距離算短，靠這條才判得到完賽。
   const C = CAT[out.cat];
-  const fin = config?.finish || Object.values(ROUTES)[0]?.pts?.at(-1) || null;
+  // config.finish 可以是一個點 [lat,lng]，或每組一個 { full: [lat,lng], half: [...] }（點對點賽事全馬半馬終點不同）
+  const cf = config?.finish, cfin = Array.isArray(cf) ? cf : cf?.[out.cat];
+  const fin = cfin || routeOf(out.cat)?.pts?.at(-1) || Object.values(ROUTES)[0]?.pts?.at(-1) || null;
   const minT = out.targetPace * C.len * 1000 * 0.4;
   let away = 0;
   for (const p of pts) {

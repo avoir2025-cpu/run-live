@@ -2,7 +2,7 @@
 :root{
   --brand:#d7192d; --brand-d:#a8101f; --ink:#111214; --ink2:#2a2c31; --paper:#f3f2ee; --card:#fff;
   --line:#e6e4df; --mute:#6b6a66; --soft:#f7f6f3; --ok:#10a35a; --warn:#c77700;
-  --full:#d7192d; --half:#1f6feb; --k10:#12a150; --k5:#8b5cf6;
+  --full:#d7192d; --half:#1f6feb; --k10:#12a150; --k5:#8b5cf6; --k12:#0891b2; --k35:#db2777; --k3:#ea580c;
   --target:44px; --nav-h:58px; --top-h:52px; --r:16px;
   --num:"Barlow Condensed",system-ui,sans-serif;
   color-scheme:light;
