@@ -2,7 +2,10 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- 鎖住整頁縮放（user 11/28：放大會跑版）。iPhone 不吃 user-scalable=no，所以再擋雙指手勢與雙擊放大；地圖、圖卡畫布自己的雙指縮放不受影響 -->
+<style>html{touch-action:manipulation}</style>
+<script>document.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});document.addEventListener('touchmove',e=>{if(e.touches.length>1&&!(e.target.closest&&e.target.closest('canvas,.leaflet-container')))e.preventDefault()},{passive:false});</script>
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#111214">
