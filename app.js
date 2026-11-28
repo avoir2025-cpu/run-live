@@ -1,10 +1,12 @@
 import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput, limitOf } from './calc.js?v=10';
 import { SB_URL, SB_KEY } from './config.js';
-import { lineOn, lineToken, resumeLine, lineCall, tokenFresh } from './line.js?v=2';
+import { lineOn, lineToken, resumeLine, lineCall, tokenFresh } from './line.js?v=3';
 
 // ---------- 基本 ----------
 const qs = new URLSearchParams(location.search);
-const TEAM = qs.get('t') || '';
+// LINE 登入回來時，參數會被包進 liff.state（例如 ?liff.state=%3Ft%3Dtcu2027&code=…），要拆開來讀
+const liffState = qs.get('liff.state');
+const TEAM = qs.get('t') || (liffState ? new URLSearchParams(liffState.slice(liffState.indexOf('?') + 1)).get('t') : '') || '';
 const K = k => `rl_${TEAM}_${k}`;
 // 跨場次共用（團體代碼、上次看的賽事）
 const G = {

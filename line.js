@@ -30,25 +30,31 @@ export async function lineToken(intent, team, extra) {
   const t = liff.isLoggedIn() ? liff.getIDToken() : null;
   if (tokenFresh(t)) return t;
   if (liff.isLoggedIn()) liff.logout(); // id_token 只有 1 小時，過期後 isLoggedIn 仍是 true，要登出再登入才會換新票
-  try { sessionStorage.setItem(SS, JSON.stringify({ intent, team, extra, at: Date.now() })); } catch { }
+  // 用 localStorage：iPhone 從 LINE App 授權回來，可能開在新分頁，sessionStorage 會不見
+  try { localStorage.setItem(SS, JSON.stringify({ intent, team, extra, at: Date.now() })); } catch { }
   liff.login({ redirectUri: selfUrl(team) });
   return new Promise(() => { }); // 正在跳到 LINE
 }
 
 // 開頁時呼叫：剛從 LINE 登入回來就回傳 { intent, extra, idToken | error }，不是就回 null
+// 待辦（intent）要等拿到結果才刪：liff.init 可能自己再轉址一次，太早刪會接不起來
 export async function resumeLine(team) {
-  let p = null; try { p = JSON.parse(sessionStorage.getItem(SS)); sessionStorage.removeItem(SS); } catch { }
-  const back = /[?&](code|liffClientId|liffRedirectUri)=/.test(location.search);
+  let p = null; try { p = JSON.parse(localStorage.getItem(SS)); } catch { }
+  const done = () => { try { localStorage.removeItem(SS); } catch { } };
+  if (p && Date.now() - p.at > 15 * 60000) { done(); p = null; }
+  const back = /[?&](code|liffClientId|liffRedirectUri|liff\.state)=/.test(location.search);
   if (!LIFF_ID || (!p && !back)) return null;
+  const clean = () => { if (back) history.replaceState(null, '', selfUrl(team).slice(location.origin.length)); };
   try {
     const liff = await init();
-    if (back) history.replaceState(null, '', selfUrl(team).slice(location.origin.length));
-    if (!p || p.team !== team || Date.now() - p.at > 15 * 60000) return null;
+    clean();
+    if (!p || p.team !== team) { done(); return null; }
     const t = liff.isLoggedIn() ? liff.getIDToken() : null;
+    done();
     if (!tokenFresh(t)) return { ...p, error: 'LINE 登入沒有完成，請再試一次' };
     return { ...p, idToken: t };
   } catch (e) {
-    if (back) history.replaceState(null, '', selfUrl(team).slice(location.origin.length));
+    clean(); done();
     return p ? { ...p, error: e.message } : null;
   }
 }
