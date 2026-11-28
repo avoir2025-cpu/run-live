@@ -10,7 +10,7 @@
 <title>完賽圖卡｜跑團 LIVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=Jost:ital,wght@0,500;1,300&family=Noto+Serif+TC:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,800&family=Noto+Sans+TC:wght@500;700;900&display=swap">
 <link rel="stylesheet" href="ui.css?v=11">
 <style>
 body{min-block-size:100dvh}
@@ -78,6 +78,7 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
       <section class="box">
         <h2 style="margin-bottom:10px">尺寸</h2>
         <div class="chips" id="fmts"><button type="button" data-fmt="story" aria-pressed="true">限動 9:16</button><button type="button" data-fmt="post" aria-pressed="false">貼文 4:5</button></div>
+        <label class="check" id="route-row" style="display:flex;align-items:center;gap:8px;margin-top:10px;min-block-size:var(--target)" hidden><input id="in-route" type="checkbox" checked style="inline-size:20px;block-size:20px;accent-color:var(--ink)"> 附上路線</label>
       </section>
 
       <section class="box">
@@ -95,12 +96,12 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
       </section>
 
       <section class="box">
-        <h2 style="margin-bottom:10px">底色</h2>
+        <h2 style="margin-bottom:10px">重點色</h2>
         <div class="sw" id="sw"></div>
-        <details class="more" style="margin-top:10px"><summary>更多文字（賽事名稱、年份、hashtag）</summary>
-          <div class="field"><label for="in-team">最上方賽事名稱</label><input id="in-team" type="text" maxlength="14"></div>
-          <div class="field"><label for="in-event">年份</label><input id="in-event" type="text" maxlength="10" inputmode="numeric"></div>
-          <div class="field" style="margin-bottom:0"><label for="in-tag">hashtag（選填，放在年份下面）</label><input id="in-tag" type="text" maxlength="16" placeholder="#一起跑到終點"></div>
+        <details class="more" style="margin-top:10px"><summary>更多文字（賽事名稱、英文小字、hashtag）</summary>
+          <div class="field"><label for="in-team">賽事名稱</label><input id="in-team" type="text" maxlength="16"></div>
+          <div class="field"><label for="in-event">賽事名稱上面的英文小字</label><input id="in-event" type="text" maxlength="34" autocapitalize="characters"></div>
+          <div class="field" style="margin-bottom:0"><label for="in-tag">hashtag（選填，放在右下角）</label><input id="in-tag" type="text" maxlength="16" placeholder="#一起跑到終點"></div>
         </details>
       </section>
     </div>
@@ -119,13 +120,16 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
 import { CAT, analyze, loadRoutes, fmtHMS, parseHMS, bindTimeInput } from './calc.js?v=10';
 import { SB_URL, SB_KEY } from './config.js';
 
-/* ====== 版型設定 v2（11/28 依 user 參考稿：雜誌封面感、上方賽名、下方名字/號碼/組別/成績、底部品牌小字） ======
-   座標以寬 1080 為準。story＝IG 限動 9:16（上方約 250px、下方約 280px 會被 IG 介面擋住，文字避開）；post＝貼文 4:5。 */
-const FORMATS = { story: { W: 1080, H: 1920, top: 250, bot: 250 }, post: { W: 1080, H: 1350, top: 92, bot: 74 } };
-const SERIF = '"Noto Serif TC", "Songti TC", serif', ITAL = '"Cormorant Garamond", Georgia, serif', NUM = 'Jost, "Helvetica Neue", Arial, sans-serif';
-const BRAND = { l: ['CHUN EN', '形象美學'], r: ['CAINERGY', '采能行銷'] }; // 底部固定品牌小字（不給改）
-const THEMES = { red: '#4e1424', navy: '#0f2340', black: '#0b0b0d', green: '#163628', orange: '#5c3216' };
+/* ====== 版型設定 v3（11/28 研究 NRC／Strava 分享卡、跑團品牌後重做） ======
+   原則：成績當主角（窄體粗斜大字撐滿寬）、整張只用一套窄體字＋思源黑體、靠左對齊、Strava 式數據列（配速/距離/日期）、只用一個重點色。
+   座標以寬 1080 為準。story＝IG 限動 9:16（上方約 250px、下方約 250px 會被 IG 介面擋住）；post＝貼文 4:5。 */
+const FORMATS = { story: { W: 1080, H: 1920, top: 250, bot: 250 }, post: { W: 1080, H: 1350, top: 76, bot: 66 } };
+const COND = '"Barlow Condensed", "Arial Narrow", sans-serif', ZH = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
+const BRAND = [['CHUN EN', '形象美學'], ['CAINERGY', '采能行銷']]; // 左下固定品牌小字（不給改）
+const THEMES = { red: '#ff2d3d', volt: '#d4ff3a', orange: '#ff7a1a', sky: '#38c6ff', white: '#ffffff' };
+const THEME_NAMES = { red: '紅', volt: '螢光黃', orange: '橘', sky: '天藍', white: '白' };
 const TITLES = ['FULL MARATHON FINISHER', 'HALF MARATHON FINISHER', '10K FINISHER', '5K FINISHER', 'PERSONAL BEST', 'FIRST MARATHON'];
+const DIST = { full: 42.195, half: 21.0975, '10k': 10, '5k': 5, '12k': 12, '3k5': 3.5, '3k': 3 };
 
 let lastEv = null; try { lastEv = JSON.parse(localStorage.getItem('rl__last')); } catch { }
 const TEAM = new URLSearchParams(location.search).get('t') || lastEv || 'tc2026';
@@ -140,7 +144,7 @@ async function rpc(fn, args) {
 }
 
 // ---------- 預設值 ----------
-const old = ls.get('card') || {}, saved = ls.get('card2') || { name: old.name, bib: old.bib, sub: old.sub, title: old.title, time: old.time };
+const old = ls.get('card2') || ls.get('card') || {}, saved = ls.get('card3') || { name: old.name, bib: old.bib, sub: old.sub, title: old.title, time: old.time, fmt: old.fmt };
 let me = ls.get('me');
 let gcode = null; try { gcode = JSON.parse(localStorage.getItem('rl__code')); } catch { }
 const token = ls.get('token'), code = ls.get('code') || gcode;
@@ -151,13 +155,13 @@ const F = {
   name: saved.name ?? me?.nick ?? '', bib: saved.bib ?? me?.bib ?? '', sub: saved.sub ?? '',
   title: saved.title ?? titleByCat[me?.cat] ?? TITLES[0],
   team: saved.team ?? '', event: saved.event ?? '', tag: saved.tag ?? '', fmt: saved.fmt === 'post' ? 'post' : 'story',
-  theme: saved.theme ?? 'red', time: '',
+  theme: THEMES[saved.theme] ? saved.theme : 'red', time: '',
 };
 for (const k of ['name', 'bib', 'sub', 'team', 'event', 'tag']) $(`#in-${k}`).value = F[k] || '';
 const isCustom = !TITLES.includes(F.title);
 $('#titles').innerHTML = TITLES.map(t => `<button type="button" data-title="${t}" aria-pressed="${t === F.title}">${t}</button>`).join('') + `<button type="button" data-title="__custom" aria-pressed="${isCustom}">自己打</button>`;
 if (isCustom) { $('#in-title-custom').hidden = false; $('#in-title-custom').value = F.title; }
-$('#sw').innerHTML = Object.entries(THEMES).map(([k, c]) => `<label style="--c:${c}"><input type="radio" name="theme" value="${k}" ${k === F.theme ? 'checked' : ''} aria-label="${({ red: "酒紅", navy: "深藍", black: "黑", green: "墨綠", orange: "焦糖" })[k]}"></label>`).join('');
+$('#sw').innerHTML = Object.entries(THEMES).map(([k, c]) => `<label style="--c:${c}"><input type="radio" name="theme" value="${k}" ${k === F.theme ? 'checked' : ''} aria-label="${THEME_NAMES[k]}"></label>`).join('');
 
 // ---------- 完賽時間來源 ----------
 let gpsSec = null;
@@ -174,28 +178,35 @@ function setTime(sec) { if (!sec) return; $('#in-time').value = fmtHMS(sec); rea
 if (me?.finish_sec) setTime(me.finish_sec);
 else if (saved.time) $('#in-time').value = saved.time;
 setSrc();
-// 圖卡上的英文賽名：每場在 config.en 設定，第一次開圖卡自動帶入（自己改過就不蓋）
-// 上方賽名、年份：從賽事清單帶（name 去掉開頭年份與括號說明；自己改過就不蓋）
-if (saved.team == null || saved.event == null) rpc('runlive_events', {}).then(evs => {
+// 賽事名稱、英文小字從賽事清單帶（自己改過就不蓋）；日期每次都拿，給數據列用
+let evDate = '';
+rpc('runlive_events', {}).then(evs => {
   const e = (evs || []).find(x => x.slug === TEAM); if (!e) return;
-  const yr = (e.date || '').slice(0, 4) || (e.name.match(/(19|20)\d\d/) || [''])[0];
-  if (saved.team == null && !$('#in-team').value) $('#in-team').value = e.name.replace(/^\s*(19|20)\d\d\s*/, '').replace(/[（(].*$/, '').trim();
-  if (saved.event == null && !$('#in-event').value) $('#in-event').value = yr;
+  evDate = (e.date || '').replace(/-/g, '.');
+  if (saved.team == null && !$('#in-team').value) $('#in-team').value = e.name.replace(/[（(].*$/, '').trim();
+  if (saved.event == null && !$('#in-event').value) $('#in-event').value = e.en || (e.date || '').slice(0, 4);
   readForm(); redraw();
 }).catch(() => { });
+// 路線：大會路線（routes/場次.json，有 GPX 的組別）；沒有就用自己當天回報的 GPS 軌跡
+let routeJson = null, myTrack = null;
+fetch(`routes/${encodeURIComponent(TEAM)}.json?v=1`).then(r => r.ok ? r.json() : null).then(j => { routeJson = j; redraw(); }).catch(() => { });
 if (token) {
   rpc('runlive_me', { p_token: token }).then(async m => {
     me = m; ls.set('me', m);
     if (!$('#in-name').value) $('#in-name').value = m.nick;
     if (!$('#in-bib').value && m.bib) $('#in-bib').value = m.bib;
     if (m.finish_sec && !saved.time) setTime(m.finish_sec);
-    if (!m.finish_sec && code) {
+    if (code) {
       try {
         const st = await rpc('runlive_state', { p_team: TEAM, p_code: code, p_since: null });
-        await loadRoutes(TEAM, st.team?.config?.routes);
-        const r = st.runners.find(x => x.id === m.id);
-        const a = analyze(r, st.points.filter(p => p.r === m.id), st.team.config, Date.now());
-        if (a.status === 'finished') { gpsSec = a.finishSec; if (!$('#in-time').value) setTime(gpsSec); }
+        const mine = st.points.filter(p => p.r === m.id).sort((a, b) => a.t - b.t);
+        if (mine.length >= 10) myTrack = mine.map(p => [p.la, p.lo]);
+        if (!m.finish_sec) {
+          await loadRoutes(TEAM, st.team?.config?.routes);
+          const r = st.runners.find(x => x.id === m.id);
+          const a = analyze(r, mine, st.team.config, Date.now());
+          if (a.status === 'finished') { gpsSec = a.finishSec; if (!$('#in-time').value) setTime(gpsSec); }
+        }
       } catch { }
     }
     readForm(); setSrc(); redraw();
@@ -231,7 +242,7 @@ cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 // ---------- 繪圖 ----------
 // 字距：canvas 的 letterSpacing 舊 Safari 不支援，一個字一個字畫
 function spaced(t, x, y, sp, align = 'left') {
-  const ch = [...t], ws = ch.map(c => ctx.measureText(c).width), w = ws.reduce((a, b) => a + b, 0) + sp * (ch.length - 1);
+  const ch = [...t], ws = ch.map(c => ctx.measureText(c).width), w = ws.reduce((a, b) => a + b, 0) + sp * Math.max(0, ch.length - 1);
   let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
   const a0 = ctx.textAlign; ctx.textAlign = 'left';
   ch.forEach((c, i) => { ctx.fillText(c, cx, y); cx += ws[i] + sp; });
@@ -240,79 +251,114 @@ function spaced(t, x, y, sp, align = 'left') {
 const spacedW = (t, sp) => [...t].reduce((a, c) => a + ctx.measureText(c).width, 0) + sp * Math.max(0, [...t].length - 1);
 // 字太長就縮：fits(size) 回 true 才停
 function fitFont(css, size, min, fits) { ctx.font = css(size); while (!fits(size) && size > min) { size -= 2; ctx.font = css(size); } return size; }
-const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; };
 function sizeCanvas() {
   const f = FORMATS[F.fmt]; if (cv.width !== f.W || cv.height !== f.H) { cv.width = f.W; cv.height = f.H; }
   cv.style.setProperty('--ar', `${f.W}/${f.H}`);
 }
+// 這張卡的距離：先看選的組別稱號，再看自己報名的組別
+function cardCat() {
+  const hit = Object.entries(titleByCat).find(([, t]) => t === F.title);
+  return hit ? hit[0] : me?.cat;
+}
+const cardDist = () => DIST[cardCat()] || 0;
+const cardRoute = () => routeJson?.[cardCat()]?.pts || myTrack || null;
+// 路線畫進 box（等比例、置中），重點色線＋起終點
+function drawRoute(pts, x0, y0, bw, bh, A) {
+  const la0 = pts.reduce((a, p) => a + p[0], 0) / pts.length, k = Math.cos(la0 * Math.PI / 180);
+  const xy = pts.map(([la, lo]) => [lo * k, -la]);
+  const xs = xy.map(p => p[0]), ys = xy.map(p => p[1]);
+  const mnx = Math.min(...xs), mxx = Math.max(...xs), mny = Math.min(...ys), mxy = Math.max(...ys);
+  const sc = Math.min(bw / ((mxx - mnx) || 1e-9), bh / ((mxy - mny) || 1e-9));
+  const ox = x0 + (bw - (mxx - mnx) * sc) / 2, oy = y0 + (bh - (mxy - mny) * sc) / 2;
+  const P = xy.map(([x, y]) => [ox + (x - mnx) * sc, oy + (y - mny) * sc]);
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const path = () => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
+  path(); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 14; ctx.stroke();
+  path(); ctx.strokeStyle = A; ctx.lineWidth = 7; ctx.stroke();
+  const dot = ([x, y], fill) => { ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = '#111'; ctx.stroke(); };
+  dot(P[0], '#fff'); dot(P[P.length - 1], A);
+  ctx.restore();
+}
+const fmtPace = s => `${Math.floor(s / 60)}'${String(Math.round(s % 60)).padStart(2, '0')}"`;
 function draw() {
   sizeCanvas();
-  const f = FORMATS[F.fmt], { W, H } = f, theme = THEMES[F.theme] || THEMES.red, M = 64, B = H - f.bot;
-  ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#1c1c1f'; ctx.fillRect(0, 0, W, H);
+  const f = FORMATS[F.fmt], { W, H } = f, A = THEMES[F.theme] || THEMES.red, M = 72, B = H - f.bot, R = W - M;
+  ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#1a1a1c'; ctx.fillRect(0, 0, W, H);
   if (photo.img) {
     const im = photo.img, base = Math.max(W / im.naturalWidth, H / im.naturalHeight) * photo.z;
     const w = im.naturalWidth * base, h = im.naturalHeight * base;
     photo.x = Math.max(Math.min(photo.x, (w - W) / 2), -(w - W) / 2); photo.y = Math.max(Math.min(photo.y, (h - H) / 2), -(h - H) / 2);
     ctx.drawImage(im, (W - w) / 2 + photo.x, (H - h) / 2 + photo.y, w, h);
   }
-  const sub = !!F.sub, nameY = B - 330 - (sub ? 52 : 0);
-  // 上方淡黑壓暗（讓白字清楚）；下方先壓黑、再往下染底色
-  let g = ctx.createLinearGradient(0, 0, 0, f.top + 330);
-  g.addColorStop(0, 'rgba(0,0,0,.62)'); g.addColorStop(.55, 'rgba(0,0,0,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, f.top + 330);
-  const fy = nameY - 380;
-  g = ctx.createLinearGradient(0, fy, 0, H);
-  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.45, 'rgba(0,0,0,.42)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
-  ctx.fillStyle = g; ctx.fillRect(0, fy, W, H - fy);
-  g = ctx.createLinearGradient(0, fy + 120, 0, H);
-  g.addColorStop(0, hexA(theme, 0)); g.addColorStop(.55, hexA(theme, .62)); g.addColorStop(1, hexA(theme, .94));
-  ctx.fillStyle = g; ctx.fillRect(0, fy + 120, W, H - fy - 120);
-  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
-  const soft = on => { ctx.shadowColor = on ? 'rgba(0,0,0,.35)' : 'transparent'; ctx.shadowBlur = on ? 14 : 0; ctx.shadowOffsetY = on ? 2 : 0; };
-  soft(true);
-  // ── 上：賽名＋年份（＋hashtag）
-  let ty = f.top + 62;
-  if (F.team) {
-    const sz = fitFont(s => `700 ${s}px ${SERIF}`, 64, 34, s => spacedW(F.team, s * .24) <= W - 2 * M);
-    spaced(F.team, W / 2, ty, sz * .24, 'center'); ty += 66;
-  }
-  if (F.event) { ctx.font = `italic 600 46px ${ITAL}`; spaced(F.event, W / 2, ty, 46 * .55, 'center'); ty += 58; }
-  if (F.tag) { ctx.font = `500 26px ${SERIF}`; ctx.fillStyle = 'rgba(255,255,255,.85)'; spaced(F.tag, W / 2, ty, 26 * .2, 'center'); ctx.fillStyle = '#fff'; }
-  // ── 名字列：左「── 名字」、右號碼
-  const bibTxt = F.bib ? String(F.bib) : '';
-  ctx.font = `italic 600 72px ${ITAL}`; const bw = bibTxt ? ctx.measureText(bibTxt).width : 0;
-  const nx = M + 96, nmax = W - M - nx - (bw ? bw + 40 : 0);
-  const nsz = fitFont(s => `700 ${s}px ${SERIF}`, 62, 30, s => spacedW(F.name, s * .08) <= nmax);
-  soft(false); ctx.fillRect(M, nameY - nsz * .36, 70, 2.5); soft(true);
-  ctx.font = `700 ${nsz}px ${SERIF}`; spaced(F.name, nx, nameY, nsz * .08);
-  if (bibTxt) { ctx.font = `italic 600 72px ${ITAL}`; ctx.textAlign = 'right'; ctx.fillText(bibTxt, W - M, nameY + 4); ctx.textAlign = 'left'; }
-  if (sub) { ctx.font = `italic 500 38px ${ITAL}`; ctx.fillStyle = 'rgba(255,255,255,.88)'; spaced(F.sub, nx, nameY + 52, 38 * .06); ctx.fillStyle = '#fff'; }
-  // ── 組別：字距拉開，FINISHER 前多空兩格
-  const cat = F.title.toUpperCase().replace(/\s+(FINISHER)$/, '  $1');
-  const csz = fitFont(s => `500 ${s}px ${NUM}`, 30, 18, s => spacedW(cat, s * .5) <= W - 2 * M);
-  spaced(cat, W / 2, B - 252, csz * .5, 'center');
-  // ── 成績
-  const tt = F.time || '0:00:00';
-  const tsz = fitFont(s => `italic 300 ${s}px ${NUM}`, 196, 90, s => spacedW(tt, s * .02) <= W - 2 * M);
-  spaced(tt, W / 2, B - 84, tsz * .02, 'center');
-  // ── 底部品牌小字（固定）
-  soft(false);
-  const brand = ([en, zh], x, align) => {
-    ctx.font = `italic 600 40px ${ITAL}`; const ew = ctx.measureText(en).width;
-    ctx.font = `500 25px ${SERIF}`; const zw = spacedW(zh, 25 * .32), gap = 18, all = ew + gap + zw;
-    const x0 = align === 'right' ? x - all : x;
-    ctx.font = `italic 600 40px ${ITAL}`; ctx.fillText(en, x0, B);
-    ctx.font = `500 25px ${SERIF}`; spaced(zh, x0 + ew + gap, B - 2, 25 * .32);
-  };
-  ctx.fillStyle = 'rgba(255,255,255,.92)';
-  brand(BRAND.l, M, 'left'); brand(BRAND.r, W - M, 'right');
-  ctx.fillStyle = '#fff';
+  // ── 先量好下方整組的高度，再鋪漸層
+  const tt = F.time || '0:00:00', secs = parseHMS(tt), dist = cardDist();
+  const tsz = fitFont(s => `italic 800 ${s}px ${COND}`, 330, 140, s => ctx.measureText(tt).width <= R - M + s * .04);
+  const statY = B - 96, timeY = statY - 92, timeTop = timeY - tsz * .72;
+  const catY = timeTop - 34, sub = !!F.sub, nameY = catY - (sub ? 118 : 70), subY = catY - 62;
+  const nameSz = 92, fadeTop = nameY - nameSz - 260;
+  let g = ctx.createLinearGradient(0, fadeTop, 0, H);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.35, 'rgba(0,0,0,.5)'); g.addColorStop(.7, 'rgba(0,0,0,.78)'); g.addColorStop(1, 'rgba(0,0,0,.88)');
+  ctx.fillStyle = g; ctx.fillRect(0, fadeTop, W, H - fadeTop);
+  g = ctx.createLinearGradient(0, 0, 0, f.top + 230);
+  g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(.6, 'rgba(0,0,0,.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, f.top + 230);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  const shadow = on => { ctx.shadowColor = on ? 'rgba(0,0,0,.4)' : 'transparent'; ctx.shadowBlur = on ? 16 : 0; ctx.shadowOffsetY = on ? 2 : 0; };
+  // ── 右下：路線（放在名字右邊的深色區，不壓到人臉）
+  const rpts = $('#in-route').checked ? cardRoute() : null, RB = F.fmt === 'post' ? 220 : 270;
+  $('#route-row').hidden = !cardRoute();
+  if (rpts && rpts.length > 1) drawRoute(rpts, R - RB, catY - 26 - RB, RB, RB, A);
+  const LW = R - M, NW = (rpts ? R - RB - 36 : R) - M;
+  // ── 上：英文小字（重點色）＋中文賽名
+  shadow(true);
+  let ty = f.top + 34;
+  if (F.event) { const sz = fitFont(s => `700 ${s}px ${COND}`, 30, 18, s => spacedW(F.event.toUpperCase(), s * .2) <= LW); ctx.fillStyle = A; spaced(F.event.toUpperCase(), M, ty, sz * .2); ty += 66; }
+  if (F.team) { const sz = fitFont(s => `900 ${s}px ${ZH}`, 52, 30, s => spacedW(F.team, s * .04) <= LW); ctx.fillStyle = '#fff'; spaced(F.team, M, ty, sz * .04); }
+  // ── 名字＋號碼
+  const bibTxt = F.bib ? '#' + String(F.bib).replace(/^#/, '') : '';
+  ctx.font = `600 46px ${COND}`; const bw = bibTxt ? spacedW(bibTxt, 46 * .06) + 28 : 0;
+  const nsz = fitFont(s => `900 ${s}px ${ZH}`, nameSz, 44, s => spacedW(F.name, s * .02) <= NW - bw);
+  ctx.fillStyle = '#fff'; const nw = spaced(F.name, M, nameY, nsz * .02);
+  if (bibTxt) { ctx.font = `600 46px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.72)'; spaced(bibTxt, M + nw + 28, nameY, 46 * .06); }
+  if (sub) { ctx.font = `600 40px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.85)'; spaced(F.sub.toUpperCase(), M, subY, 40 * .1); }
+  // ── 組別：重點色短槓＋字距拉開
+  shadow(false);
+  ctx.fillStyle = A; ctx.fillRect(M, catY - 30, 8, 32);
+  const cat = F.title.toUpperCase();
+  const csz = fitFont(s => `700 ${s}px ${COND}`, 38, 22, s => spacedW(cat, s * .16) <= R - M - 28);
+  spaced(cat, M + 26, catY, csz * .16);
+  // ── 成績（主角）
+  shadow(true); ctx.fillStyle = '#fff'; ctx.font = `italic 800 ${tsz}px ${COND}`;
+  ctx.fillText(tt, M - tsz * .03, timeY);
+  shadow(false);
+  // ── 數據列：配速／距離／日期
+  const stats = [];
+  if (secs && dist) stats.push(['PACE', fmtPace(secs / dist), '/KM']);
+  if (dist) stats.push(['DISTANCE', String(dist), 'KM']);
+  if (evDate) stats.push(['DATE', evDate, '']);
+  const colW = (R - M) / 3;
+  stats.forEach(([lab, val, unit], i) => {
+    const x = M + colW * i;
+    if (i) { ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(x - 24, statY - 82, 1.5, 92); }
+    ctx.font = `600 24px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.6)'; spaced(lab, x, statY - 56, 24 * .22);
+    ctx.font = `700 56px ${COND}`; ctx.fillStyle = '#fff'; const vw = spaced(val, x, statY, 56 * .02);
+    if (unit) { ctx.font = `600 26px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.6)'; spaced(unit, x + vw + 8, statY, 26 * .1); }
+  });
+  // ── 底線＋品牌小字（左）＋hashtag（右）
+  ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(M, B - 52, R - M, 1.5);
+  let bx = M;
+  BRAND.forEach(([en, zh], i) => {
+    if (i) { ctx.font = `500 24px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fillText('×', bx + 4, B); bx += 34; }
+    ctx.font = `700 26px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.92)'; bx += spaced(en, bx, B, 26 * .14) + 12;
+    ctx.font = `500 22px ${ZH}`; ctx.fillStyle = 'rgba(255,255,255,.7)'; bx += spaced(zh, bx, B, 22 * .12) + 18;
+  });
+  if (F.tag) { const sz = fitFont(s => `700 ${s}px ${ZH}`, 24, 16, s => spacedW(F.tag, s * .06) <= R - bx - 20); ctx.fillStyle = A; spaced(F.tag, R, B, sz * .06, 'right'); }
 }
 let fontReq = 0;
 async function redraw() {
   const id = ++fontReq, txt = [F.name, F.bib, F.sub, F.title, F.time, F.team, F.event, F.tag, '0123456789:'].join('');
-  const zh = txt + '形象美學采能行銷';
-  try { await Promise.all([document.fonts.load('700 60px "Noto Serif TC"', zh), document.fonts.load('500 30px "Noto Serif TC"', zh), document.fonts.load('italic 600 60px "Cormorant Garamond"', txt + 'CHUNEAIRGY'), document.fonts.load('italic 500 40px "Cormorant Garamond"', txt), document.fonts.load('italic 300 100px Jost', txt), document.fonts.load('500 30px Jost', txt)]); } catch { }
+  const zh = txt + '形象美學采能行銷×';
+  try { await Promise.all([document.fonts.load('900 80px "Noto Sans TC"', zh), document.fonts.load('500 24px "Noto Sans TC"', zh), document.fonts.load('700 24px "Noto Sans TC"', zh), document.fonts.load('italic 800 200px "Barlow Condensed"', '0123456789:'), document.fonts.load('700 40px "Barlow Condensed"', 'A'), document.fonts.load('600 40px "Barlow Condensed"', 'A'), document.fonts.load('500 24px "Barlow Condensed"', 'A')]); } catch { }
   if (id === fontReq) draw();
 }
 
@@ -325,13 +371,14 @@ function readForm() {
   F.theme = document.querySelector('input[name=theme]:checked')?.value || 'red';
   F.fmt = $('#fmts [aria-pressed=true]')?.dataset.fmt || 'story';
   const t = $('#in-time').value.trim(), s = parseHMS(t); F.time = s ? fmtHMS(s) : t;
-  ls.set('card2', { name: F.name, bib: F.bib, sub: F.sub, title: F.title, team: F.team, event: F.event, tag: F.tag, theme: F.theme, fmt: F.fmt, time: F.time });
+  ls.set('card3', { name: F.name, bib: F.bib, sub: F.sub, title: F.title, team: F.team, event: F.event, tag: F.tag, theme: F.theme, fmt: F.fmt, time: F.time });
 }
 document.querySelector('.cwrap').addEventListener('input', ev => {
   if (['in-photo', 'in-photo2', 'in-zoom'].includes(ev.target.id)) return;
   readForm(); if (ev.target.id === 'in-time') setSrc(); redraw();
 });
 $('#fmts').querySelectorAll('[data-fmt]').forEach(x => x.setAttribute('aria-pressed', x.dataset.fmt === F.fmt));
+$('#in-route').onchange = () => redraw();
 $('#fmts').onclick = ev => {
   const b = ev.target.closest('[data-fmt]'); if (!b) return;
   $('#fmts').querySelectorAll('[data-fmt]').forEach(x => x.setAttribute('aria-pressed', x === b));
