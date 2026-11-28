@@ -10,7 +10,7 @@
 <title>完賽圖卡｜跑團 LIVE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:ital,wght@1,800&family=Noto+Sans+TC:wght@700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=Jost:ital,wght@0,500;1,300&family=Noto+Serif+TC:wght@500;700;900&display=swap">
 <link rel="stylesheet" href="ui.css?v=11">
 <style>
 body{min-block-size:100dvh}
@@ -24,7 +24,7 @@ body{min-block-size:100dvh}
 @media (min-width:760px){.cgrid{grid-template-columns:minmax(0,360px) 1fr;align-items:start}.pv{position:sticky;top:70px}}
 .pv{position:relative;max-inline-size:min(360px,31dvh);margin-inline:auto;inline-size:100%}
 @media (min-width:760px){.pv{max-inline-size:360px}}
-.pv canvas{display:block;inline-size:100%;block-size:auto;aspect-ratio:9/16;border-radius:16px;box-shadow:0 10px 30px #0003;touch-action:none;background:#2a2b2f;cursor:grab}
+.pv canvas{display:block;inline-size:100%;block-size:auto;aspect-ratio:var(--ar,9/16);border-radius:16px;box-shadow:0 10px 30px #0003;touch-action:none;background:#2a2b2f;cursor:grab}
 .pv .pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:16px;color:#fff;cursor:pointer;background:#111214d9;text-align:center;padding:10px}
 .pv .pick svg{inline-size:40px;block-size:40px}
 .pv .pick b{font-size:16px}
@@ -76,7 +76,12 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
       </section>
 
       <section class="box">
-        <h2>標題</h2>
+        <h2 style="margin-bottom:10px">尺寸</h2>
+        <div class="chips" id="fmts"><button type="button" data-fmt="story" aria-pressed="true">限動 9:16</button><button type="button" data-fmt="post" aria-pressed="false">貼文 4:5</button></div>
+      </section>
+
+      <section class="box">
+        <h2>組別</h2>
         <div class="chips" id="titles"></div>
         <input id="in-title-custom" type="text" maxlength="28" placeholder="輸入自己的標題" style="margin-top:8px" hidden>
       </section>
@@ -92,10 +97,10 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
       <section class="box">
         <h2 style="margin-bottom:10px">底色</h2>
         <div class="sw" id="sw"></div>
-        <details class="more" style="margin-top:10px"><summary>更多文字（跑團名、賽事、hashtag）</summary>
-          <div class="field"><label for="in-team">最上方</label><input id="in-team" type="text" maxlength="20"></div>
-          <div class="field"><label for="in-event">左下</label><input id="in-event" type="text" maxlength="30"></div>
-          <div class="field"><label for="in-tag">右下</label><input id="in-tag" type="text" maxlength="24"></div>
+        <details class="more" style="margin-top:10px"><summary>更多文字（賽事名稱、年份、hashtag）</summary>
+          <div class="field"><label for="in-team">最上方賽事名稱</label><input id="in-team" type="text" maxlength="14"></div>
+          <div class="field"><label for="in-event">年份</label><input id="in-event" type="text" maxlength="10" inputmode="numeric"></div>
+          <div class="field" style="margin-bottom:0"><label for="in-tag">hashtag（選填，放在年份下面）</label><input id="in-tag" type="text" maxlength="16" placeholder="#一起跑到終點"></div>
         </details>
       </section>
     </div>
@@ -114,22 +119,12 @@ details.more summary{cursor:pointer;font-weight:700;font-size:15px;min-block-siz
 import { CAT, analyze, loadRoutes, fmtHMS, parseHMS, bindTimeInput } from './calc.js?v=10';
 import { SB_URL, SB_KEY } from './config.js';
 
-/* ====== 版型設定（拿到正式模板後只要改這一段） ======
-   座標以 1080×1920 為準；IG 限動上方約 250px、下方約 340px 會被介面擋住，重要文字避開。 */
-const LAYOUT = {
-  W: 1080, H: 1920,
-  overlay: null,                         // 模板若是 PNG 疊圖（中間透明），填檔名例如 'template.png'
-  topFog: { to: 560, alpha: .92 },
-  bottomFade: { from: 820, alpha: .97 },
-  team:  { y: 300, size: 46, color: '#1b1d22' },
-  name:  { y: 1170, size: 104, color: '#fff' },
-  sub:   { y: 1262, size: 50, color: '#fff' },
-  title: { y: 1372, size: 64, color: '#ffc21a' },
-  time:  { y: 1575, size: 200, color: '#fff' },
-  lines: { y: 1640 },
-  foot:  { y: 1712, size: 34, color: '#fff' },
-};
-const THEMES = { red: '#a3001b', navy: '#0b2a5b', black: '#111111', green: '#0f5132', orange: '#c2410c' };
+/* ====== 版型設定 v2（11/28 依 user 參考稿：雜誌封面感、上方賽名、下方名字/號碼/組別/成績、底部品牌小字） ======
+   座標以寬 1080 為準。story＝IG 限動 9:16（上方約 250px、下方約 280px 會被 IG 介面擋住，文字避開）；post＝貼文 4:5。 */
+const FORMATS = { story: { W: 1080, H: 1920, top: 250, bot: 250 }, post: { W: 1080, H: 1350, top: 92, bot: 74 } };
+const SERIF = '"Noto Serif TC", "Songti TC", serif', ITAL = '"Cormorant Garamond", Georgia, serif', NUM = 'Jost, "Helvetica Neue", Arial, sans-serif';
+const BRAND = { l: ['CHUN EN', '形象美學'], r: ['CAINERGY', '采能行銷'] }; // 底部固定品牌小字（不給改）
+const THEMES = { red: '#4e1424', navy: '#0f2340', black: '#0b0b0d', green: '#163628', orange: '#5c3216' };
 const TITLES = ['FULL MARATHON FINISHER', 'HALF MARATHON FINISHER', '10K FINISHER', '5K FINISHER', 'PERSONAL BEST', 'FIRST MARATHON'];
 
 let lastEv = null; try { lastEv = JSON.parse(localStorage.getItem('rl__last')); } catch { }
@@ -145,7 +140,7 @@ async function rpc(fn, args) {
 }
 
 // ---------- 預設值 ----------
-const saved = ls.get('card') || {};
+const old = ls.get('card') || {}, saved = ls.get('card2') || { name: old.name, bib: old.bib, sub: old.sub, title: old.title, time: old.time };
 let me = ls.get('me');
 let gcode = null; try { gcode = JSON.parse(localStorage.getItem('rl__code')); } catch { }
 const token = ls.get('token'), code = ls.get('code') || gcode;
@@ -155,14 +150,14 @@ if (me?.cat && titleByCat[me.cat] && !TITLES.includes(titleByCat[me.cat])) TITLE
 const F = {
   name: saved.name ?? me?.nick ?? '', bib: saved.bib ?? me?.bib ?? '', sub: saved.sub ?? '',
   title: saved.title ?? titleByCat[me?.cat] ?? TITLES[0],
-  team: saved.team ?? 'RUN TOGETHER', event: saved.event ?? (TEAM === 'tc2026' || TEAM === 'demo' ? "TAICHUNG INT'L MARATHON 2026" : ''), tag: saved.tag ?? '#一起跑到終點',
+  team: saved.team ?? '', event: saved.event ?? '', tag: saved.tag ?? '', fmt: saved.fmt === 'post' ? 'post' : 'story',
   theme: saved.theme ?? 'red', time: '',
 };
 for (const k of ['name', 'bib', 'sub', 'team', 'event', 'tag']) $(`#in-${k}`).value = F[k] || '';
 const isCustom = !TITLES.includes(F.title);
 $('#titles').innerHTML = TITLES.map(t => `<button type="button" data-title="${t}" aria-pressed="${t === F.title}">${t}</button>`).join('') + `<button type="button" data-title="__custom" aria-pressed="${isCustom}">自己打</button>`;
 if (isCustom) { $('#in-title-custom').hidden = false; $('#in-title-custom').value = F.title; }
-$('#sw').innerHTML = Object.entries(THEMES).map(([k, c]) => `<label style="--c:${c}"><input type="radio" name="theme" value="${k}" ${k === F.theme ? 'checked' : ''} aria-label="${k}"></label>`).join('');
+$('#sw').innerHTML = Object.entries(THEMES).map(([k, c]) => `<label style="--c:${c}"><input type="radio" name="theme" value="${k}" ${k === F.theme ? 'checked' : ''} aria-label="${({ red: "酒紅", navy: "深藍", black: "黑", green: "墨綠", orange: "焦糖" })[k]}"></label>`).join('');
 
 // ---------- 完賽時間來源 ----------
 let gpsSec = null;
@@ -180,9 +175,13 @@ if (me?.finish_sec) setTime(me.finish_sec);
 else if (saved.time) $('#in-time').value = saved.time;
 setSrc();
 // 圖卡上的英文賽名：每場在 config.en 設定，第一次開圖卡自動帶入（自己改過就不蓋）
-if (saved.event == null) rpc('runlive_events', {}).then(evs => {
-  const e = (evs || []).find(x => x.slug === TEAM);
-  if (e?.en && !$('#in-event').value) { $('#in-event').value = e.en; readForm(); redraw(); }
+// 上方賽名、年份：從賽事清單帶（name 去掉開頭年份與括號說明；自己改過就不蓋）
+if (saved.team == null || saved.event == null) rpc('runlive_events', {}).then(evs => {
+  const e = (evs || []).find(x => x.slug === TEAM); if (!e) return;
+  const yr = (e.date || '').slice(0, 4) || (e.name.match(/(19|20)\d\d/) || [''])[0];
+  if (saved.team == null && !$('#in-team').value) $('#in-team').value = e.name.replace(/^\s*(19|20)\d\d\s*/, '').replace(/[（(].*$/, '').trim();
+  if (saved.event == null && !$('#in-event').value) $('#in-event').value = yr;
+  readForm(); redraw();
 }).catch(() => { });
 if (token) {
   rpc('runlive_me', { p_token: token }).then(async m => {
@@ -217,7 +216,7 @@ $('#in-photo2').onchange = ev => loadPhoto(ev.target.files[0]);
 $('#in-zoom').oninput = ev => { photo.z = +ev.target.value; draw(); };
 const cv = $('#cv'), ctx = cv.getContext('2d');
 const ptrs = new Map(); let pinch0 = null;
-const scale = () => LAYOUT.W / cv.getBoundingClientRect().width;
+const scale = () => cv.width / cv.getBoundingClientRect().width;
 cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = { d: Math.hypot(a.x - b.x, a.y - b.y), z: photo.z }; } });
 cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p || !photo.img) return;
@@ -230,65 +229,90 @@ const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = null; };
 cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 
 // ---------- 繪圖 ----------
-let overlayImg = null;
-if (LAYOUT.overlay) { overlayImg = new Image(); overlayImg.onload = () => draw(); overlayImg.src = LAYOUT.overlay; }
-function sparkle(x, y, r) {
-  ctx.save(); ctx.translate(x, y); ctx.beginPath();
-  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? r * .28 : r; ctx.lineTo(Math.cos(a - Math.PI / 2) * rr, Math.sin(a - Math.PI / 2) * rr); }
-  ctx.closePath(); ctx.fill(); ctx.restore();
+// 字距：canvas 的 letterSpacing 舊 Safari 不支援，一個字一個字畫
+function spaced(t, x, y, sp, align = 'left') {
+  const ch = [...t], ws = ch.map(c => ctx.measureText(c).width), w = ws.reduce((a, b) => a + b, 0) + sp * (ch.length - 1);
+  let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  const a0 = ctx.textAlign; ctx.textAlign = 'left';
+  ch.forEach((c, i) => { ctx.fillText(c, cx, y); cx += ws[i] + sp; });
+  ctx.textAlign = a0; return w;
 }
-function fitText(text, font, maxW) { let size = font.size; ctx.font = font.css(size); while (ctx.measureText(text).width > maxW && size > 20) { size -= 2; ctx.font = font.css(size); } return size; }
+const spacedW = (t, sp) => [...t].reduce((a, c) => a + ctx.measureText(c).width, 0) + sp * Math.max(0, [...t].length - 1);
+// 字太長就縮：fits(size) 回 true 才停
+function fitFont(css, size, min, fits) { ctx.font = css(size); while (!fits(size) && size > min) { size -= 2; ctx.font = css(size); } return size; }
 const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; };
+function sizeCanvas() {
+  const f = FORMATS[F.fmt]; if (cv.width !== f.W || cv.height !== f.H) { cv.width = f.W; cv.height = f.H; }
+  cv.style.setProperty('--ar', `${f.W}/${f.H}`);
+}
 function draw() {
-  const L = LAYOUT, { W, H } = L, theme = THEMES[F.theme] || THEMES.red;
-  ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#3a3b40'; ctx.fillRect(0, 0, W, H);
+  sizeCanvas();
+  const f = FORMATS[F.fmt], { W, H } = f, theme = THEMES[F.theme] || THEMES.red, M = 64, B = H - f.bot;
+  ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#1c1c1f'; ctx.fillRect(0, 0, W, H);
   if (photo.img) {
     const im = photo.img, base = Math.max(W / im.naturalWidth, H / im.naturalHeight) * photo.z;
     const w = im.naturalWidth * base, h = im.naturalHeight * base;
     photo.x = Math.max(Math.min(photo.x, (w - W) / 2), -(w - W) / 2); photo.y = Math.max(Math.min(photo.y, (h - H) / 2), -(h - H) / 2);
     ctx.drawImage(im, (W - w) / 2 + photo.x, (H - h) / 2 + photo.y, w, h);
   }
-  let g = ctx.createLinearGradient(0, 0, 0, L.topFog.to);
-  g.addColorStop(0, `rgba(255,255,255,${L.topFog.alpha})`); g.addColorStop(.45, `rgba(255,255,255,${L.topFog.alpha * .55})`); g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, L.topFog.to);
-  g = ctx.createLinearGradient(0, L.bottomFade.from, 0, H);
-  g.addColorStop(0, hexA(theme, 0)); g.addColorStop(.45, hexA(theme, .55)); g.addColorStop(1, hexA(theme, L.bottomFade.alpha));
-  ctx.fillStyle = g; ctx.fillRect(0, L.bottomFade.from, W, H - L.bottomFade.from);
-  if (overlayImg?.complete) ctx.drawImage(overlayImg, 0, 0, W, H);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  if (F.team) { ctx.fillStyle = L.team.color; ctx.font = `italic 800 ${L.team.size}px Barlow, "Noto Sans TC"`; ctx.fillText(F.team.toUpperCase(), W / 2, L.team.y); }
-  const shadow = () => { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4; };
-  const noShadow = () => { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; };
-  shadow();
-  const nameCss = s => `900 ${s}px "Noto Sans TC"`, bibTxt = F.bib ? String(F.bib) : '', gap = 70;
-  let size = L.name.size; ctx.font = nameCss(size);
-  const total = () => ctx.measureText(F.name).width + (bibTxt ? gap + ctx.measureText(bibTxt).width : 0);
-  while (total() > W - 140 && size > 40) { size -= 2; ctx.font = nameCss(size); }
-  const nw = ctx.measureText(F.name).width, x0 = (W - total()) / 2;
-  ctx.fillStyle = L.name.color; ctx.textAlign = 'left'; ctx.fillText(F.name, x0, L.name.y);
-  if (bibTxt) {
-    noShadow(); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(x0 + nw + gap / 2 - 2, L.name.y - size * .82, 4, size * .92); shadow();
-    ctx.fillStyle = L.name.color; ctx.fillText(bibTxt, x0 + nw + gap, L.name.y);
+  const sub = !!F.sub, nameY = B - 330 - (sub ? 52 : 0);
+  // 上方淡黑壓暗（讓白字清楚）；下方先壓黑、再往下染底色
+  let g = ctx.createLinearGradient(0, 0, 0, f.top + 330);
+  g.addColorStop(0, 'rgba(0,0,0,.62)'); g.addColorStop(.55, 'rgba(0,0,0,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, f.top + 330);
+  const fy = nameY - 380;
+  g = ctx.createLinearGradient(0, fy, 0, H);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.45, 'rgba(0,0,0,.42)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
+  ctx.fillStyle = g; ctx.fillRect(0, fy, W, H - fy);
+  g = ctx.createLinearGradient(0, fy + 120, 0, H);
+  g.addColorStop(0, hexA(theme, 0)); g.addColorStop(.55, hexA(theme, .62)); g.addColorStop(1, hexA(theme, .94));
+  ctx.fillStyle = g; ctx.fillRect(0, fy + 120, W, H - fy - 120);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+  const soft = on => { ctx.shadowColor = on ? 'rgba(0,0,0,.35)' : 'transparent'; ctx.shadowBlur = on ? 14 : 0; ctx.shadowOffsetY = on ? 2 : 0; };
+  soft(true);
+  // ── 上：賽名＋年份（＋hashtag）
+  let ty = f.top + 62;
+  if (F.team) {
+    const sz = fitFont(s => `700 ${s}px ${SERIF}`, 64, 34, s => spacedW(F.team, s * .24) <= W - 2 * M);
+    spaced(F.team, W / 2, ty, sz * .24, 'center'); ty += 66;
   }
-  ctx.textAlign = 'center';
-  if (F.sub) { ctx.fillStyle = L.sub.color; fitText(F.sub.toUpperCase(), { size: L.sub.size, css: s => `700 ${s}px "Barlow Condensed", "Noto Sans TC"` }, W - 160); ctx.fillText(F.sub.toUpperCase(), W / 2, L.sub.y); }
-  const off = F.sub ? 0 : -40;
-  ctx.fillStyle = L.title.color; fitText(F.title, { size: L.title.size, css: s => `italic 800 ${s}px Barlow, "Noto Sans TC"` }, W - 140); ctx.fillText(F.title, W / 2, L.title.y + off);
-  ctx.fillStyle = L.time.color; fitText(F.time || '0:00:00', { size: L.time.size, css: s => `900 ${s}px "Noto Sans TC"` }, W - 120); ctx.fillText(F.time || '--:--:--', W / 2, L.time.y + off);
-  noShadow();
-  ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 3;
-  const ly = L.lines.y;
-  ctx.beginPath(); ctx.moveTo(150, ly); ctx.lineTo(480, ly); ctx.moveTo(600, ly); ctx.lineTo(930, ly); ctx.stroke();
-  sparkle(95, ly, 26); sparkle(985, ly, 26);
-  ctx.fillStyle = L.foot.color;
-  ctx.textAlign = 'left'; fitText(F.event.toUpperCase(), { size: L.foot.size, css: s => `italic 800 ${s}px Barlow, "Noto Sans TC"` }, 420); ctx.fillText(F.event.toUpperCase(), 150, L.foot.y);
-  ctx.textAlign = 'right'; fitText(F.tag, { size: L.foot.size + 6, css: s => `700 ${s}px "Barlow Condensed", "Noto Sans TC"` }, 420); ctx.fillText(F.tag, 930, L.foot.y);
-  ctx.textAlign = 'center';
+  if (F.event) { ctx.font = `italic 600 46px ${ITAL}`; spaced(F.event, W / 2, ty, 46 * .55, 'center'); ty += 58; }
+  if (F.tag) { ctx.font = `500 26px ${SERIF}`; ctx.fillStyle = 'rgba(255,255,255,.85)'; spaced(F.tag, W / 2, ty, 26 * .2, 'center'); ctx.fillStyle = '#fff'; }
+  // ── 名字列：左「── 名字」、右號碼
+  const bibTxt = F.bib ? String(F.bib) : '';
+  ctx.font = `italic 600 72px ${ITAL}`; const bw = bibTxt ? ctx.measureText(bibTxt).width : 0;
+  const nx = M + 96, nmax = W - M - nx - (bw ? bw + 40 : 0);
+  const nsz = fitFont(s => `700 ${s}px ${SERIF}`, 62, 30, s => spacedW(F.name, s * .08) <= nmax);
+  soft(false); ctx.fillRect(M, nameY - nsz * .36, 70, 2.5); soft(true);
+  ctx.font = `700 ${nsz}px ${SERIF}`; spaced(F.name, nx, nameY, nsz * .08);
+  if (bibTxt) { ctx.font = `italic 600 72px ${ITAL}`; ctx.textAlign = 'right'; ctx.fillText(bibTxt, W - M, nameY + 4); ctx.textAlign = 'left'; }
+  if (sub) { ctx.font = `italic 500 38px ${ITAL}`; ctx.fillStyle = 'rgba(255,255,255,.88)'; spaced(F.sub, nx, nameY + 52, 38 * .06); ctx.fillStyle = '#fff'; }
+  // ── 組別：字距拉開，FINISHER 前多空兩格
+  const cat = F.title.toUpperCase().replace(/\s+(FINISHER)$/, '  $1');
+  const csz = fitFont(s => `500 ${s}px ${NUM}`, 30, 18, s => spacedW(cat, s * .5) <= W - 2 * M);
+  spaced(cat, W / 2, B - 252, csz * .5, 'center');
+  // ── 成績
+  const tt = F.time || '0:00:00';
+  const tsz = fitFont(s => `italic 300 ${s}px ${NUM}`, 196, 90, s => spacedW(tt, s * .02) <= W - 2 * M);
+  spaced(tt, W / 2, B - 84, tsz * .02, 'center');
+  // ── 底部品牌小字（固定）
+  soft(false);
+  const brand = ([en, zh], x, align) => {
+    ctx.font = `italic 600 40px ${ITAL}`; const ew = ctx.measureText(en).width;
+    ctx.font = `500 25px ${SERIF}`; const zw = spacedW(zh, 25 * .32), gap = 18, all = ew + gap + zw;
+    const x0 = align === 'right' ? x - all : x;
+    ctx.font = `italic 600 40px ${ITAL}`; ctx.fillText(en, x0, B);
+    ctx.font = `500 25px ${SERIF}`; spaced(zh, x0 + ew + gap, B - 2, 25 * .32);
+  };
+  ctx.fillStyle = 'rgba(255,255,255,.92)';
+  brand(BRAND.l, M, 'left'); brand(BRAND.r, W - M, 'right');
+  ctx.fillStyle = '#fff';
 }
 let fontReq = 0;
 async function redraw() {
   const id = ++fontReq, txt = [F.name, F.bib, F.sub, F.title, F.time, F.team, F.event, F.tag, '0123456789:'].join('');
-  try { await Promise.all([document.fonts.load('900 100px "Noto Sans TC"', txt), document.fonts.load('italic 800 60px Barlow', 'A'), document.fonts.load('700 60px "Barlow Condensed"', 'A')]); } catch { }
+  const zh = txt + '形象美學采能行銷';
+  try { await Promise.all([document.fonts.load('700 60px "Noto Serif TC"', zh), document.fonts.load('500 30px "Noto Serif TC"', zh), document.fonts.load('italic 600 60px "Cormorant Garamond"', txt + 'CHUNEAIRGY'), document.fonts.load('italic 500 40px "Cormorant Garamond"', txt), document.fonts.load('italic 300 100px Jost', txt), document.fonts.load('500 30px Jost', txt)]); } catch { }
   if (id === fontReq) draw();
 }
 
@@ -299,13 +323,20 @@ function readForm() {
   F.title = sel === '__custom' ? ($('#in-title-custom').value.trim() || ' ') : (sel || TITLES[0]);
   F.team = $('#in-team').value.trim(); F.event = $('#in-event').value.trim(); F.tag = $('#in-tag').value.trim();
   F.theme = document.querySelector('input[name=theme]:checked')?.value || 'red';
+  F.fmt = $('#fmts [aria-pressed=true]')?.dataset.fmt || 'story';
   const t = $('#in-time').value.trim(), s = parseHMS(t); F.time = s ? fmtHMS(s) : t;
-  ls.set('card', { name: F.name, bib: F.bib, sub: F.sub, title: F.title, team: F.team, event: F.event, tag: F.tag, theme: F.theme, time: F.time });
+  ls.set('card2', { name: F.name, bib: F.bib, sub: F.sub, title: F.title, team: F.team, event: F.event, tag: F.tag, theme: F.theme, fmt: F.fmt, time: F.time });
 }
 document.querySelector('.cwrap').addEventListener('input', ev => {
   if (['in-photo', 'in-photo2', 'in-zoom'].includes(ev.target.id)) return;
   readForm(); if (ev.target.id === 'in-time') setSrc(); redraw();
 });
+$('#fmts').querySelectorAll('[data-fmt]').forEach(x => x.setAttribute('aria-pressed', x.dataset.fmt === F.fmt));
+$('#fmts').onclick = ev => {
+  const b = ev.target.closest('[data-fmt]'); if (!b) return;
+  $('#fmts').querySelectorAll('[data-fmt]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  readForm(); photo.x = 0; photo.y = 0; redraw();
+};
 $('#titles').onclick = ev => {
   const b = ev.target.closest('[data-title]'); if (!b) return;
   $('#titles').querySelectorAll('[data-title]').forEach(x => x.setAttribute('aria-pressed', x === b));
