@@ -1,6 +1,6 @@
 import { CAT, ROUTES, loadRoutes, analyze, routeOf, etaAt, passesAt, fmtPace, fmtHMS, fmtClock, fmtAgo, parseHMS, gunTime, hav, bindTimeInput, limitOf } from './calc.js?v=10';
 import { SB_URL, SB_KEY } from './config.js';
-import { lineOn, lineToken, resumeLine, lineCall, tokenFresh } from './line.js?v=1';
+import { lineOn, lineToken, resumeLine, lineCall, tokenFresh } from './line.js?v=2';
 
 // ---------- 基本 ----------
 const qs = new URLSearchParams(location.search);

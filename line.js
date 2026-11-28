@@ -1,7 +1,7 @@
 // 用 LINE 登入／綁定（LIFF）v1（2026-11-27）
 // LIFF_ID 空字串＝功能關閉，畫面上不會出現任何 LINE 按鈕。
 // ⚠️ 改了這支要把 app.js 裡 import 的 line.js?v= 加 1（JS 會被快取一年）。
-export const LIFF_ID = '';
+export const LIFF_ID = '2012840008-iCP400Eg'; // 采能 Provider「跑團 LIVE」LINE Login 頻道 2012840008（11/28 建、已 Published）
 export const lineOn = () => !!LIFF_ID;
 
 const SS = 'rl_line';
