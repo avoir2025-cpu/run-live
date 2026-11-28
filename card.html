@@ -123,7 +123,7 @@ import { SB_URL, SB_KEY } from './config.js';
 /* ====== 版型設定 v3（11/28 研究 NRC／Strava 分享卡、跑團品牌後重做） ======
    原則：成績當主角（窄體粗斜大字撐滿寬）、整張只用一套窄體字＋思源黑體、靠左對齊、Strava 式數據列（配速/距離/日期）、只用一個重點色。
    座標以寬 1080 為準。story＝IG 限動 9:16（上方約 250px、下方約 250px 會被 IG 介面擋住）；post＝貼文 4:5。 */
-const FORMATS = { story: { W: 1080, H: 1920, top: 250, bot: 250 }, post: { W: 1080, H: 1350, top: 76, bot: 66 } };
+const FORMATS = { story: { W: 1080, H: 1920, top: 250, bot: 140 }, post: { W: 1080, H: 1350, top: 76, bot: 66 } };
 const COND = '"Barlow Condensed", "Arial Narrow", sans-serif', ZH = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
 const BRAND = [['CHUN EN', '形象美學'], ['CAINERGY', '采能行銷']]; // 左下固定品牌小字（不給改）
 const THEMES = { red: '#ff2d3d', volt: '#d4ff3a', orange: '#ff7a1a', sky: '#38c6ff', white: '#ffffff' };
@@ -293,7 +293,7 @@ function draw() {
   const secs = parseHMS(F.time || ''), dist = cardDist();
   const tt = !F.time ? '0:00:00' : secs && secs < 3600 ? F.time.replace(/^0+:/, '') : F.time; // 一小時內寫 58:41，不寫 0:58:41
   const tsz = fitFont(s => `italic 800 ${s}px ${COND}`, 330, 140, s => ctx.measureText(tt).width <= R - M + s * .04);
-  const statY = B - 96, timeY = statY - 92, timeTop = timeY - tsz * .72;
+  const statY = B - 116, timeY = statY - 108, timeTop = timeY - tsz * .72;
   const catY = timeTop - 34, sub = !!F.sub, nameY = catY - (sub ? 118 : 70), subY = catY - 62;
   const nameSz = 92, fadeTop = nameY - nameSz - 260;
   let g = ctx.createLinearGradient(0, fadeTop, 0, H);
@@ -339,20 +339,20 @@ function draw() {
   const colW = (R - M) / 3;
   stats.forEach(([lab, val, unit], i) => {
     const x = M + colW * i;
-    if (i) { ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(x - 24, statY - 82, 1.5, 92); }
-    ctx.font = `600 24px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.6)'; spaced(lab, x, statY - 56, 24 * .22);
-    ctx.font = `700 56px ${COND}`; ctx.fillStyle = '#fff'; const vw = spaced(val, x, statY, 56 * .02);
-    if (unit) { ctx.font = `600 26px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.6)'; spaced(unit, x + vw + 8, statY, 26 * .1); }
+    if (i) { ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(x - 24, statY - 98, 1.5, 108); }
+    ctx.font = `600 32px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.66)'; spaced(lab, x, statY - 68, 32 * .18);
+    ctx.font = `700 66px ${COND}`; ctx.fillStyle = '#fff'; const vw = spaced(val, x, statY, 66 * .02);
+    if (unit) { ctx.font = `600 32px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.66)'; spaced(unit, x + vw + 8, statY, 32 * .08); }
   });
   // ── 底線＋品牌小字（左）＋hashtag（右）
-  ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(M, B - 52, R - M, 1.5);
+  ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(M, B - 66, R - M, 1.5);
   let bx = M;
   BRAND.forEach(([en, zh], i) => {
-    if (i) { ctx.font = `500 24px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.fillText('×', bx + 4, B); bx += 34; }
-    ctx.font = `700 26px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.92)'; bx += spaced(en, bx, B, 26 * .14) + 12;
-    ctx.font = `500 22px ${ZH}`; ctx.fillStyle = 'rgba(255,255,255,.7)'; bx += spaced(zh, bx, B, 22 * .12) + 18;
+    if (i) { ctx.font = `500 30px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillText('×', bx + 4, B); bx += 40; }
+    ctx.font = `700 34px ${COND}`; ctx.fillStyle = 'rgba(255,255,255,.95)'; bx += spaced(en, bx, B, 34 * .12) + 12;
+    ctx.font = `500 28px ${ZH}`; ctx.fillStyle = 'rgba(255,255,255,.78)'; bx += spaced(zh, bx, B, 28 * .1) + 18;
   });
-  if (F.tag) { const sz = fitFont(s => `700 ${s}px ${ZH}`, 24, 16, s => spacedW(F.tag, s * .06) <= R - bx - 20); ctx.fillStyle = A; spaced(F.tag, R, B, sz * .06, 'right'); }
+  if (F.tag) { const sz = fitFont(s => `700 ${s}px ${ZH}`, 30, 18, s => spacedW(F.tag, s * .06) <= R - bx - 20); ctx.fillStyle = A; spaced(F.tag, R, B, sz * .06, 'right'); }
 }
 let fontReq = 0;
 async function redraw() {
