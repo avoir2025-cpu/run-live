@@ -187,8 +187,8 @@ rpc('runlive_events', {}).then(evs => {
   if (saved.event == null && !$('#in-event').value) $('#in-event').value = e.en || (e.date || '').slice(0, 4);
   readForm(); redraw();
 }).catch(() => { });
-// 路線：大會路線（routes/場次.json，有 GPX 的組別）；沒有就用自己當天回報的 GPS 軌跡
-let routeJson = null, myTrack = null;
+// 路線：只用大會路線（routes/場次.json，有官方 GPX 的組別才有）；不用當天 GPS 軌跡（user 11/28 指定）
+let routeJson = null;
 fetch(`routes/${encodeURIComponent(TEAM)}.json?v=1`).then(r => r.ok ? r.json() : null).then(j => { routeJson = j; redraw(); }).catch(() => { });
 if (token) {
   rpc('runlive_me', { p_token: token }).then(async m => {
@@ -196,17 +196,13 @@ if (token) {
     if (!$('#in-name').value) $('#in-name').value = m.nick;
     if (!$('#in-bib').value && m.bib) $('#in-bib').value = m.bib;
     if (m.finish_sec && !saved.time) setTime(m.finish_sec);
-    if (code) {
+    if (!m.finish_sec && code) {
       try {
         const st = await rpc('runlive_state', { p_team: TEAM, p_code: code, p_since: null });
-        const mine = st.points.filter(p => p.r === m.id).sort((a, b) => a.t - b.t);
-        if (mine.length >= 10) myTrack = mine.map(p => [p.la, p.lo]);
-        if (!m.finish_sec) {
-          await loadRoutes(TEAM, st.team?.config?.routes);
-          const r = st.runners.find(x => x.id === m.id);
-          const a = analyze(r, mine, st.team.config, Date.now());
-          if (a.status === 'finished') { gpsSec = a.finishSec; if (!$('#in-time').value) setTime(gpsSec); }
-        }
+        await loadRoutes(TEAM, st.team?.config?.routes);
+        const r = st.runners.find(x => x.id === m.id);
+        const a = analyze(r, st.points.filter(p => p.r === m.id), st.team.config, Date.now());
+        if (a.status === 'finished') { gpsSec = a.finishSec; if (!$('#in-time').value) setTime(gpsSec); }
       } catch { }
     }
     readForm(); setSrc(); redraw();
@@ -261,7 +257,7 @@ function cardCat() {
   return hit ? hit[0] : me?.cat;
 }
 const cardDist = () => DIST[cardCat()] || 0;
-const cardRoute = () => routeJson?.[cardCat()]?.pts || myTrack || null;
+const cardRoute = () => routeJson?.[cardCat()]?.pts || null;
 // 路線畫進 box（等比例、置中），重點色線＋起終點
 function drawRoute(pts, x0, y0, bw, bh, A) {
   const la0 = pts.reduce((a, p) => a + p[0], 0) / pts.length, k = Math.cos(la0 * Math.PI / 180);
@@ -304,7 +300,7 @@ function draw() {
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, f.top + 230);
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   const shadow = on => { ctx.shadowColor = on ? 'rgba(0,0,0,.4)' : 'transparent'; ctx.shadowBlur = on ? 16 : 0; ctx.shadowOffsetY = on ? 2 : 0; };
-  // ── 右下：路線（放在名字右邊的深色區，不壓到人臉）
+  // ── 右下：大會路線（放在名字右邊的深色區，不壓到人臉；該組別沒有官方路線就不畫）
   const rpts = $('#in-route').checked ? cardRoute() : null, RB = F.fmt === 'post' ? 220 : 270;
   $('#route-row').hidden = !cardRoute();
   if (rpts && rpts.length > 1) drawRoute(rpts, R - RB, catY - 26 - RB, RB, RB, A);
