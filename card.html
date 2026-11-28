@@ -187,9 +187,12 @@ rpc('runlive_events', {}).then(evs => {
   if (saved.event == null && !$('#in-event').value) $('#in-event').value = e.en || (e.date || '').slice(0, 4);
   readForm(); redraw();
 }).catch(() => { });
-// 路線：只用大會路線（routes/場次.json，有官方 GPX 的組別才有）；不用當天 GPS 軌跡（user 11/28 指定）
+// 路線：只用大會路線（不用當天 GPS 軌跡，user 11/28 指定）
 let routeJson = null;
-fetch(`routes/${encodeURIComponent(TEAM)}.json?v=1`).then(r => r.ok ? r.json() : null).then(j => { routeJson = j; redraw(); }).catch(() => { });
+// 10K／5K 等沒有官方 GPX 的組別：routes/場次_card.json（從大會路線圖圖片描的形狀，只給圖卡用，tools/trace_route_img_v1.py）
+const getJ = u => fetch(u).then(r => r.ok ? r.json() : null).catch(() => null);
+Promise.all([getJ(`routes/${encodeURIComponent(TEAM)}.json?v=1`), getJ(`routes/${encodeURIComponent(TEAM)}_card.json?v=1`)])
+  .then(([a, b]) => { routeJson = { ...(b || {}), ...(a || {}) }; redraw(); });
 if (token) {
   rpc('runlive_me', { p_token: token }).then(async m => {
     me = m; ls.set('me', m);
@@ -287,7 +290,8 @@ function draw() {
     ctx.drawImage(im, (W - w) / 2 + photo.x, (H - h) / 2 + photo.y, w, h);
   }
   // ── 先量好下方整組的高度，再鋪漸層
-  const tt = F.time || '0:00:00', secs = parseHMS(tt), dist = cardDist();
+  const secs = parseHMS(F.time || ''), dist = cardDist();
+  const tt = !F.time ? '0:00:00' : secs && secs < 3600 ? F.time.replace(/^0+:/, '') : F.time; // 一小時內寫 58:41，不寫 0:58:41
   const tsz = fitFont(s => `italic 800 ${s}px ${COND}`, 330, 140, s => ctx.measureText(tt).width <= R - M + s * .04);
   const statY = B - 96, timeY = statY - 92, timeTop = timeY - tsz * .72;
   const catY = timeTop - 34, sub = !!F.sub, nameY = catY - (sub ? 118 : 70), subY = catY - 62;
